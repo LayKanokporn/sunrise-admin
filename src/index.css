@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body { @apply text-slate-800; }
+}
+
+@layer components {
+  .card { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-4; }
+  .btn  { @apply px-4 py-2 rounded-lg font-medium transition-colors; }
+  .btn-primary { @apply bg-sunrise-500 text-white hover:bg-sunrise-600; }
+  .btn-ghost   { @apply text-slate-600 hover:bg-slate-100; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium; }
+}
