@@ -11,7 +11,19 @@ import { Plus } from 'lucide-react';
 const dayHeaders = ['จ','อ','พ','พฤ','ศ','ส','อา'];
 const monthNamesTH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
-function fmtISO(d) { return d.toISOString().slice(0,10); }
+// [v0.7] FIX timezone bug — เดิมใช้ toISOString() แปลงเป็น UTC ทำให้วันที่ลด 1
+function fmtISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+// parse ISO "2026-06-10" → Date object ใน local timezone (ไม่ใช่ UTC)
+function parseISO(iso) {
+  const m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return new Date(NaN);
+  return new Date(+m[1], +m[2]-1, +m[3]);
+}
 function addMonths(d, n) { const x = new Date(d); x.setMonth(x.getMonth()+n); return x; }
 
 // คำนวณ matrix ของเดือน — start Monday
@@ -81,7 +93,7 @@ export default function CalendarPage() {
   // KPI ของเดือน
   const monthStats = useMemo(() => {
     const orders = (monthQ.data?.orders || []).filter(o => {
-      const d = new Date(o.deliveryDateISO);
+      const d = parseISO(o.deliveryDateISO);
       return d.getFullYear() === year && d.getMonth() === month;
     });
     return {
@@ -176,7 +188,7 @@ export default function CalendarPage() {
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
             <div className="font-bold">
-              {new Date(picked).toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
+              {parseISO(picked).toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
             </div>
             {dayQ.data && (
               <div className="text-sm text-slate-500">

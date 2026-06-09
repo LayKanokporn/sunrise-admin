@@ -1,6 +1,12 @@
 // [v0.4] Mock data — ใช้เมื่อ VITE_USE_MOCK=true (พัฒนา UI โดยไม่ต้องต่อ API)
 const today = new Date();
-const fmtISO = (d) => d.toISOString().slice(0,10);
+// [v0.7] FIX timezone — local date components
+const fmtISO = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+};
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
 const fmtTH = (d) => {
   const dd = String(d.getDate()).padStart(2,'0');

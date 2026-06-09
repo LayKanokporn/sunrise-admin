@@ -3,7 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../lib/api';
 
-function fmtISO(d) { return d.toISOString().slice(0,10); }
+// [v0.7] FIX timezone — use local date components instead of UTC
+function fmtISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
 
 const presets = [
