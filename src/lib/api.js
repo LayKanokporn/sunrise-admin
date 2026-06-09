@@ -56,5 +56,10 @@ export const api = USE_MOCK ? mock : {
   note:       (orderId, value)  => call('note',   { uid:_currentUid, orderId, value }),
   addItem:    (orderId, item)   => call('addItem', { uid:_currentUid, orderId, ...item }),
   removeItem: (orderId, menu)   => call('removeItem', { uid:_currentUid, orderId, menu }),
-  parseSave:  (text)            => call('parseSave', { uid:_currentUid, text })
+  parseSave:  (text)            => call('parseSave', { uid:_currentUid, text }),
+  // [v0.8] new endpoints
+  search:     (q, limit)        => call('search', { q, limit }),
+  customer:   (name)            => call('customer', { name }),
+  menus:      ()                => call('menus'),
+  newcount:   (since)           => call('newcount', { since })
 };

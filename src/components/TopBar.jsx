@@ -1,9 +1,34 @@
-import { RefreshCw } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+// [v0.8] TopBar — refresh + search + notification badge
+import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { RefreshCw, Search, Bell } from 'lucide-react';
+import { api } from '../lib/api';
 
-export default function TopBar({ profile }) {
+const LAST_SEEN_KEY = 'sunrise.lastSeenTimestamp';
+
+export default function TopBar({ profile, onOpenSearch }) {
   const qc = useQueryClient();
+  const [lastSeen, setLastSeen] = useState(
+    () => localStorage.getItem(LAST_SEEN_KEY) || new Date(Date.now() - 24*3600*1000).toISOString()
+  );
+
+  // [v0.8] poll new orders every 60s
+  const { data: newData } = useQuery({
+    queryKey: ['newcount', lastSeen],
+    queryFn: () => api.newcount(lastSeen),
+    refetchInterval: 60_000,
+    staleTime: 30_000
+  });
+
+  const newCount = newData?.count || 0;
+
   const refetchAll = () => qc.invalidateQueries();
+  const markAllSeen = () => {
+    const now = new Date().toISOString();
+    localStorage.setItem(LAST_SEEN_KEY, now);
+    setLastSeen(now);
+    refetchAll();
+  };
 
   return (
     <header className="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm">
@@ -15,18 +40,34 @@ export default function TopBar({ profile }) {
             <div className="text-xs text-slate-500 leading-tight">Dashboard</div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={refetchAll}
-            className="btn btn-ghost p-2"
-            aria-label="refresh">
+        <div className="flex items-center gap-1">
+          <button onClick={onOpenSearch} className="btn btn-ghost p-2" aria-label="search">
+            <Search size={18} />
+          </button>
+          <button onClick={markAllSeen} className="btn btn-ghost p-2 relative" aria-label="notifications" title={newCount ? `${newCount} ใหม่ — กดเพื่อ mark ว่าเห็นแล้ว` : 'ไม่มีออเดอร์ใหม่'}>
+            <Bell size={18} />
+            {newCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                {newCount > 9 ? '9+' : newCount}
+              </span>
+            )}
+          </button>
+          <button onClick={refetchAll} className="btn btn-ghost p-2" aria-label="refresh">
             <RefreshCw size={18} />
           </button>
           {profile?.pictureUrl && (
-            <img src={profile.pictureUrl} alt="" className="w-8 h-8 rounded-full" />
+            <img src={profile.pictureUrl} alt="" className="w-8 h-8 rounded-full ml-1" />
           )}
         </div>
       </div>
+
+      {/* [v0.8] new order preview banner */}
+      {newCount > 0 && newData?.preview?.length > 0 && (
+        <div className="bg-sunrise-50 border-t border-sunrise-100 px-4 py-2 text-xs text-sunrise-700 flex items-center justify-between">
+          <span>🆕 ออเดอร์ใหม่ {newCount}: {newData.preview.join(', ')}{newData.preview.length < newCount ? '...' : ''}</span>
+          <button onClick={markAllSeen} className="underline text-xs">เห็นแล้ว</button>
+        </div>
+      )}
     </header>
   );
 }

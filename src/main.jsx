@@ -5,12 +5,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.jsx';
 import './index.css';
 
+// [v0.7] cache aggressive — Apps Script ช้า + ใช้ response cache 60s server-side
+//   staleTime 60s = ข้อมูลถือว่าสด 1 นาที (ไม่ refetch ทันทีตอน mount component อื่น)
+//   refetchInterval 60s = poll ทุก 1 นาที (ลดจาก 30s — ประหยัด quota)
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchInterval: 30_000,     // polling 30s — กึ่ง realtime
+      refetchInterval: 60_000,
       refetchOnWindowFocus: true,
-      staleTime: 10_000,
+      staleTime: 60_000,           // ← ใช้ cached ทันทีถ้าน้อยกว่า 60s
+      gcTime: 5 * 60_000,          // ← เก็บ cache ใน memory 5 นาที (เปลี่ยน tab กลับมาเร็ว)
       retry: 1
     }
   }

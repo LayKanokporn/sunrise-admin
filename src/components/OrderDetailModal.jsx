@@ -1,6 +1,7 @@
 // [v0.5] Order detail modal — แก้/ดูทุก field + จัดการ items
-import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+// [v0.8] เพิ่ม typeahead autocomplete สำหรับเพิ่มเมนู
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, AlertTriangle, CheckCircle2, Trash2, Plus, MapPin, Phone, Clock, Save } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -135,26 +136,12 @@ export default function OrderDetailModal({ order, onClose }) {
 
               <div className="border-t border-slate-200 pt-3">
                 <div className="font-medium text-sm mb-2">➕ เพิ่มเมนูใหม่</div>
-                <div className="space-y-2">
-                  <input type="text" placeholder="ชื่อเมนู"
-                    value={newItem.menu} onChange={(e) => setNewItem({...newItem, menu:e.target.value})}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-                  <div className="grid grid-cols-3 gap-2">
-                    <input type="number" placeholder="จำนวน" min={1}
-                      value={newItem.qty} onChange={(e) => setNewItem({...newItem, qty:+e.target.value})}
-                      className="px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-                    <select value={newItem.unit} onChange={(e) => setNewItem({...newItem, unit:e.target.value})}
-                      className="px-3 py-2 rounded-lg border border-slate-300 text-sm">
-                      <option>ชิ้น</option><option>วง</option><option>ปอนด์</option><option>กล่อง</option>
-                    </select>
-                    <input type="number" placeholder="ราคารวม" min={0}
-                      value={newItem.price} onChange={(e) => setNewItem({...newItem, price:+e.target.value})}
-                      className="px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-                  </div>
-                  <button onClick={addItem} disabled={busy} className="btn btn-primary w-full flex items-center justify-center gap-2">
-                    <Plus size={16} /> เพิ่มเมนู
-                  </button>
-                </div>
+                <MenuTypeahead
+                  newItem={newItem}
+                  setNewItem={setNewItem}
+                  onAdd={addItem}
+                  busy={busy}
+                />
               </div>
             </div>
           )}
@@ -233,5 +220,89 @@ function Field({ label, value, onChange, placeholder, multiline, icon }) {
           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
       )}
     </label>
+  );
+}
+
+// [v0.8] MenuTypeahead — autocomplete ชื่อเมนูจาก /?api=menus
+//   suggestions filter ตามที่พิมพ์ + auto-fill หน่วย+ราคา เมื่อคลิก
+function MenuTypeahead({ newItem, setNewItem, onAdd, busy }) {
+  const [showList, setShowList] = useState(false);
+
+  const { data } = useQuery({
+    queryKey: ['menus'],
+    queryFn: () => api.menus(),
+    staleTime: 10 * 60_000,    // 10 นาที (เปลี่ยนไม่บ่อย)
+    gcTime: 30 * 60_000
+  });
+
+  const allMenus = data?.menus || [];
+  const q = newItem.menu.trim().toLowerCase();
+
+  const suggestions = useMemo(() => {
+    if (!q) return allMenus.slice(0, 8);
+    return allMenus
+      .filter(m => m.name.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [q, allMenus]);
+
+  function pick(m) {
+    const unit = m.defaultUnit || 'ชิ้น';
+    const price = unit === 'วง' ? (m.perWong || m.perPiece) : (m.perPiece || m.perWong);
+    setNewItem({ ...newItem, menu: m.name, unit, price: price * (newItem.qty || 1) });
+    setShowList(false);
+  }
+
+  return (
+    <div className="space-y-2 relative">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="พิมพ์เพื่อค้นหาเมนู..."
+          value={newItem.menu}
+          onChange={(e) => { setNewItem({ ...newItem, menu: e.target.value }); setShowList(true); }}
+          onFocus={() => setShowList(true)}
+          onBlur={() => setTimeout(() => setShowList(false), 200)}
+          className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+        />
+        {showList && suggestions.length > 0 && (
+          <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            {suggestions.map((m, i) => (
+              <button
+                key={i}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(m)}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 flex items-center justify-between border-b border-slate-100 last:border-b-0">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">{m.name}</div>
+                  <div className="text-[10px] text-slate-400">
+                    {m.source === 'master' ? '⭐ มาตรฐาน' : `📊 ใช้ ${m.usedCount} ครั้ง`}
+                  </div>
+                </div>
+                <div className="text-xs text-slate-500 shrink-0 ml-2">
+                  {m.perPiece > 0 && <span>฿{m.perPiece}/ชิ้น </span>}
+                  {m.perWong > 0 && <span>฿{m.perWong}/วง</span>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <input type="number" placeholder="จำนวน" min={1}
+          value={newItem.qty} onChange={(e) => setNewItem({...newItem, qty:+e.target.value})}
+          className="px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+        <select value={newItem.unit} onChange={(e) => setNewItem({...newItem, unit:e.target.value})}
+          className="px-3 py-2 rounded-lg border border-slate-300 text-sm">
+          <option>ชิ้น</option><option>วง</option><option>ปอนด์</option><option>กล่อง</option>
+        </select>
+        <input type="number" placeholder="ราคารวม" min={0}
+          value={newItem.price} onChange={(e) => setNewItem({...newItem, price:+e.target.value})}
+          className="px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+      </div>
+      <button onClick={onAdd} disabled={busy} className="btn btn-primary w-full flex items-center justify-center gap-2">
+        <Plus size={16} /> เพิ่มเมนู
+      </button>
+    </div>
   );
 }

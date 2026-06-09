@@ -1,11 +1,15 @@
 // [v0.2] Calendar Main Dashboard — month grid + summary + day detail
+// [v0.8] เพิ่ม filter chips + bulk select + customer profile
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, TrendingUp, Package, DollarSign, AlertCircle } from 'lucide-react';
 import { api } from '../lib/api';
+import { useModals } from '../App';
 import OrderCard from '../components/OrderCard';
-import OrderDetailModal from '../components/OrderDetailModal';
 import AddOrderModal from '../components/AddOrderModal';
+import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
+import BulkActionBar from '../components/BulkActionBar';
+import { SkeletonOrderCard, SkeletonStatCard } from '../components/Skeleton';
 import { Plus } from 'lucide-react';
 
 const dayHeaders = ['จ','อ','พ','พฤ','ศ','ส','อา'];
@@ -48,14 +52,27 @@ export default function CalendarPage() {
   const [anchor, setAnchor] = useState(today);
   const [picked, setPicked] = useState(fmtISO(today));
   // [v0.5] modal state
-  const [selectedOrder, setSelectedOrder] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const modals = useModals();
   // [v0.6] auto-scroll ลง detail เมื่อเลือกวัน
   const detailRef = useRef(null);
   function pickDate(iso) {
     setPicked(iso);
     setTimeout(() => detailRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
   }
+  // [v0.8] filter + bulk state
+  const [filters, setFilters] = useState(() => new Set());
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const toggleFilter = (key) => setFilters(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
@@ -200,16 +217,35 @@ export default function CalendarPage() {
           <button onClick={() => setPicked(todayKey)} className="btn btn-ghost text-sm">↻ วันนี้</button>
         </div>
 
-        {dayQ.isLoading && <div className="text-sm text-slate-500">⏳ กำลังโหลด...</div>}
+        {/* [v0.8] filter chips */}
+        <div className="mb-3">
+          <FilterChips chips={ORDER_FILTERS} active={filters} onToggle={toggleFilter} />
+        </div>
+
+        {dayQ.isLoading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[1,2,3].map(i => <SkeletonOrderCard key={i} />)}
+          </div>
+        )}
         {dayQ.data?.orders.length === 0 && (
           <div className="text-center text-slate-400 py-8">— ไม่มีออเดอร์วันนี้ —</div>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {(dayQ.data?.orders || []).map((o) => (
-            <OrderCard key={o.orderId} order={o} onClick={() => setSelectedOrder(o)} />
+          {applyOrderFilters(dayQ.data?.orders || [], filters).map((o) => (
+            <OrderCard
+              key={o.orderId}
+              order={o}
+              onClick={() => modals.openOrder(o)}
+              selected={selectedIds.has(o.orderId)}
+              onToggleSelect={toggleSelect}
+              onCustomerClick={modals.openCustomer}
+            />
           ))}
         </div>
+        {dayQ.data?.orders?.length > 0 && applyOrderFilters(dayQ.data.orders, filters).length === 0 && (
+          <div className="text-center text-slate-400 py-8 text-sm">— filter ทำให้ไม่เหลือออเดอร์ —</div>
+        )}
       </div>
 
       {/* [v0.5] Floating Add button */}
@@ -220,13 +256,11 @@ export default function CalendarPage() {
         <Plus size={28} />
       </button>
 
-      {/* [v0.5] Modals */}
-      {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
-      )}
-      {showAdd && (
-        <AddOrderModal onClose={() => setShowAdd(false)} />
-      )}
+      {/* [v0.8] Bulk action bar */}
+      <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
+
+      {/* AddOrder modal — เฉพาะตัวนี้ ไม่ใช่ global */}
+      {showAdd && <AddOrderModal onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

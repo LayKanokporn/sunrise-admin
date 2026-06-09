@@ -1,11 +1,13 @@
 // [v0.1] Kanban — 4 columns: รอทำ / กำลังทำ / พร้อมส่ง / ส่งแล้ว
-// Phase 1: read-only. Phase 2 จะมีปุ่ม "→ ขั้นถัดไป"
+// [v0.8] filter chips + bulk select + customer profile + global modals
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { useModals } from '../App';
 import OrderCard from '../components/OrderCard';
-import OrderDetailModal from '../components/OrderDetailModal';
 import AddOrderModal from '../components/AddOrderModal';
+import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
+import BulkActionBar from '../components/BulkActionBar';
 import { Plus } from 'lucide-react';
 
 const columns = [
@@ -16,31 +18,39 @@ const columns = [
 ];
 
 function todayISO() {
-  // [v0.7] FIX timezone — use local date components
+  // [v0.7] local date components
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${dd}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 export default function Kanban() {
   const [date, setDate] = useState(todayISO());
-  // [v0.5] modal state
-  const [selectedOrder, setSelectedOrder] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const modals = useModals();
+  // [v0.8] filter + bulk
+  const [filters, setFilters] = useState(() => new Set());
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const toggleFilter = (key) => setFilters(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['orders', date],
     queryFn: () => api.orders({ date })
   });
 
-  const orders = data?.orders || [];
+  const orders = applyOrderFilters(data?.orders || [], filters);
   const buckets = columns.map(c => ({
     ...c,
     orders: orders.filter(c.match)
   }));
-  // ออเดอร์ที่ตกทุก match → ใส่ default bucket แรก
   const unmatched = orders.filter(o => !columns.some(c => c.match(o)));
   if (unmatched.length) buckets[0].orders.push(...unmatched);
 
@@ -56,13 +66,16 @@ export default function Kanban() {
         />
         <button onClick={() => setDate(todayISO())} className="btn btn-ghost text-sm">วันนี้</button>
         <div className="text-sm text-slate-500">
-          {isLoading ? '⏳' : `ทั้งหมด ${orders.length} ออเดอร์`}
+          {isLoading ? '⏳' : `${orders.length} ออเดอร์` + (filters.size ? ` (filter ${filters.size})` : '')}
         </div>
       </div>
 
+      {/* [v0.8] filter chips */}
+      <FilterChips chips={ORDER_FILTERS} active={filters} onToggle={toggleFilter} />
+
       {error && <div className="card text-red-600">⚠️ {error.message}</div>}
 
-      {/* 4 columns: mobile = 1 col, tablet = 2, desktop = 4 */}
+      {/* 4 columns */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {buckets.map((col) => (
           <div key={col.key} className={`rounded-xl ${col.color} p-3 min-h-[200px]`}>
@@ -72,7 +85,15 @@ export default function Kanban() {
             </div>
             <div className="space-y-3">
               {col.orders.map((o) => (
-                <OrderCard key={o.orderId} order={o} compact onClick={() => setSelectedOrder(o)} />
+                <OrderCard
+                  key={o.orderId}
+                  order={o}
+                  compact
+                  onClick={() => modals.openOrder(o)}
+                  selected={selectedIds.has(o.orderId)}
+                  onToggleSelect={toggleSelect}
+                  onCustomerClick={modals.openCustomer}
+                />
               ))}
               {col.orders.length === 0 && (
                 <div className="text-xs text-slate-400 text-center py-4">— ว่าง —</div>
@@ -82,7 +103,6 @@ export default function Kanban() {
         ))}
       </div>
 
-      {/* [v0.5] Floating Add button */}
       <button
         onClick={() => setShowAdd(true)}
         className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-sunrise-500 text-white shadow-lg hover:bg-sunrise-600 flex items-center justify-center transition-transform hover:scale-110"
@@ -90,13 +110,9 @@ export default function Kanban() {
         <Plus size={28} />
       </button>
 
-      {/* [v0.5] Modals */}
-      {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
-      )}
-      {showAdd && (
-        <AddOrderModal onClose={() => setShowAdd(false)} />
-      )}
+      <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
+
+      {showAdd && <AddOrderModal onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

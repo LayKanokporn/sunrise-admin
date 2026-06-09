@@ -153,8 +153,58 @@ export const mock = {
     if (i >= 0) { o.grandTotal -= o.items[i].itemTotal; o.items.splice(i,1); }
     return Promise.resolve({ ok:true, newGrand:o.grandTotal });
   },
+  // [v0.8] new mocks
+  search: (q, limit) => {
+    const qq = (q||'').toLowerCase();
+    const rows = ALL.filter(o =>
+      (o.customerName||'').toLowerCase().includes(qq) ||
+      (o.phone||'').includes(qq) ||
+      (o.orderId||'').toLowerCase().includes(qq) ||
+      (o.items||[]).some(it => (it.menuName||'').toLowerCase().includes(qq))
+    ).slice(0, limit||30);
+    return Promise.resolve({ ok:true, count:rows.length, query:q, orders:rows });
+  },
+  customer: (name) => {
+    const nameLow = (name||'').toLowerCase().replace(/\s+/g,'');
+    const rows = ALL.filter(o => {
+      const c = (o.customerName||'').toLowerCase().replace(/\s+/g,'');
+      return c === nameLow || c.includes(nameLow) || nameLow.includes(c);
+    });
+    let totalSpent = 0, totalItems = 0;
+    const menuFreq = {};
+    rows.forEach(o => {
+      totalSpent += o.grandTotal;
+      (o.items||[]).forEach(it => {
+        totalItems += it.qty;
+        menuFreq[it.menuName] = (menuFreq[it.menuName]||0) + it.qty;
+      });
+    });
+    const topMenus = Object.keys(menuFreq).map(k => ({name:k, qty:menuFreq[k]}))
+      .sort((a,b)=>b.qty-a.qty).slice(0,5);
+    return Promise.resolve({
+      ok:true, name, orderCount:rows.length, totalSpent, totalItems, topMenus,
+      orders: rows.sort((a,b)=>b.deliveryDateISO.localeCompare(a.deliveryDateISO))
+    });
+  },
+  menus: () => {
+    const list = [
+      { name:'เค้กมะพร้าว',       perPiece:75,  perWong:750, defaultUnit:'วง', usedCount:25 },
+      { name:'ทีรามิสุ',         perPiece:75,  perWong:750, defaultUnit:'ชิ้น', usedCount:20 },
+      { name:'ชีสเค้กหน้าไหม้',  perPiece:85,  perWong:850, defaultUnit:'วง', usedCount:18 },
+      { name:'เรดเวลเวท',        perPiece:75,  perWong:750, defaultUnit:'วง', usedCount:15 },
+      { name:'เอิร์ลเกรย์',      perPiece:75,  perWong:0,   defaultUnit:'ชิ้น', usedCount:12 },
+      { name:'ชีสทาร์ตบลูเบอร์รี่', perPiece:75, perWong:750, defaultUnit:'วง', usedCount:10 },
+      { name:'เค้กช็อกโกแลต',    perPiece:75,  perWong:750, defaultUnit:'วง', usedCount:8 },
+      { name:'เค้กส้ม',          perPiece:75,  perWong:750, defaultUnit:'วง', usedCount:6 },
+      { name:'นิวยอร์กชีสเค้ก',  perPiece:85,  perWong:850, defaultUnit:'วง', usedCount:5 }
+    ];
+    return Promise.resolve({ ok:true, count:list.length, menus:list });
+  },
+  newcount: (since) => Promise.resolve({
+    ok:true, count: Math.floor(Math.random()*5), since,
+    preview: ['ทูบา', 'บ้านปูสวน', 'April Cafe'].slice(0, Math.floor(Math.random()*4))
+  }),
   parseSave: (text) => {
-    // mock: ไม่ parse จริง — แค่สร้างออเดอร์ปลอม
     const id = 'ORD-' + Date.now();
     ALL.unshift({
       orderId: id, customerName: '(mock จาก parseSave)', phone: '', channel: 'LIFF',
@@ -165,5 +215,37 @@ export const mock = {
       items: [{ menuName:'(mock item)', unit:'ชิ้น', qty:1, unitPrice:500, itemTotal:500 }]
     });
     return Promise.resolve({ ok:true, orderId:id, customer:'(mock)', total:500, items:1 });
-  }
+  },
+  // [v0.8] new endpoints
+  search: (q, limit) => {
+    const ql = q.toLowerCase();
+    const found = ALL.filter(o =>
+      o.customerName.toLowerCase().includes(ql) ||
+      o.phone.includes(q) ||
+      o.orderId.includes(q) ||
+      o.items.some(it => it.menuName.toLowerCase().includes(ql))
+    ).slice(0, limit || 30);
+    return Promise.resolve({ ok:true, count:found.length, query:q, orders:found });
+  },
+  customer: (name) => {
+    const nameLow = name.toLowerCase().replace(/\s+/g,'');
+    const found = ALL.filter(o => o.customerName.toLowerCase().replace(/\s+/g,'').includes(nameLow));
+    const totalSpent = found.reduce((s,o) => s + o.grandTotal, 0);
+    const totalItems = found.reduce((s,o) => s + o.items.reduce((s2,it)=>s2+it.qty,0), 0);
+    const menuFreq = {};
+    found.forEach(o => o.items.forEach(it => menuFreq[it.menuName] = (menuFreq[it.menuName]||0) + it.qty));
+    const topMenus = Object.entries(menuFreq).map(([name,qty])=>({name,qty}))
+      .sort((a,b)=>b.qty-a.qty).slice(0,5);
+    return Promise.resolve({
+      ok:true, name, orderCount:found.length, totalSpent, totalItems,
+      topMenus, orders:found.sort((a,b)=>(b.deliveryDateISO||'').localeCompare(a.deliveryDateISO||''))
+    });
+  },
+  menus: () => Promise.resolve({
+    ok:true,
+    menus: menus.map(m => ({
+      name:m.name, perPiece:m.unit==='ชิ้น'?m.price:0, perWong:m.unit==='วง'?m.price:0,
+      defaultUnit:m.unit, source:'master', usedCount:Math.floor(Math.random()*30)
+    }))
+  })
 };

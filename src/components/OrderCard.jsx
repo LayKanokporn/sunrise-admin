@@ -1,26 +1,31 @@
-import { Phone, MapPin, Clock, AlertTriangle, CreditCard, CheckCircle2 } from 'lucide-react';
+// [v0.8] OrderCard — เพิ่ม checkbox (bulk select) + clickable customer name (profile)
+import { Phone, MapPin, Clock, CreditCard, CheckCircle2 } from 'lucide-react';
 
-const statusColor = {
-  preparing: 'bg-amber-100 text-amber-800',
-  ready: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  '✅ ส่งแล้ว': 'bg-green-100 text-green-800',
-  '🚗 ออกส่ง': 'bg-indigo-100 text-indigo-800',
-  '🛵 รับงาน': 'bg-amber-100 text-amber-800',
-  '❌ ยกเลิก': 'bg-slate-200 text-slate-600'
-};
-
-export default function OrderCard({ order, compact = false, onClick }) {
+export default function OrderCard({
+  order,
+  compact = false,
+  onClick,
+  selected = false,
+  onToggleSelect,        // optional — เปิด bulk mode
+  onCustomerClick        // optional — เปิด customer profile
+}) {
   const isPaid = (order.paymentStatus || '').toLowerCase() === 'paid';
   const itemCount = (order.items || []).length;
   const firstItems = (order.items || []).slice(0, 3);
   const moreItems = itemCount - firstItems.length;
 
+  const cardClick = (e) => {
+    if (onToggleSelect && (e.target.closest('[data-bulk-checkbox]'))) return;
+    if (onCustomerClick && e.target.closest('[data-customer-name]')) return;
+    onClick?.();
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={cardClick}
       className={
       'card relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow ' +
+      (selected ? 'ring-2 ring-sunrise-500 ' : '') +
       (order.isUrgent ? 'border-l-4 border-l-red-500 bg-red-50/30' : '') +
       (order.isPassed ? ' opacity-60' : '')
     }>
@@ -30,10 +35,30 @@ export default function OrderCard({ order, compact = false, onClick }) {
         </div>
       )}
 
-      {/* customer + time */}
+      {/* customer + time + checkbox */}
       <div className="flex items-start justify-between gap-2 mb-2">
+        {onToggleSelect && (
+          <label
+            data-bulk-checkbox
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center pt-1 cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelect(order.orderId)}
+              className="w-4 h-4 rounded border-slate-300 text-sunrise-500 focus:ring-sunrise-500"
+            />
+          </label>
+        )}
         <div className="min-w-0 flex-1">
-          <div className="font-bold truncate">{order.customerName || '-'}</div>
+          <button
+            data-customer-name
+            onClick={(e) => { e.stopPropagation(); onCustomerClick?.(order.customerName); }}
+            disabled={!onCustomerClick}
+            className={'font-bold truncate text-left max-w-full block ' +
+              (onCustomerClick ? 'hover:text-sunrise-600 hover:underline' : '')}>
+            {order.customerName || '-'}
+          </button>
           <div className="text-xs text-slate-500 truncate">{order.orderId}</div>
         </div>
         {order.deliveryTime && (
@@ -45,7 +70,6 @@ export default function OrderCard({ order, compact = false, onClick }) {
 
       {!compact && (
         <>
-          {/* items */}
           <div className="text-sm space-y-1 mb-2">
             {firstItems.map((it, i) => (
               <div key={i} className="flex justify-between gap-2 text-slate-700">
@@ -56,7 +80,6 @@ export default function OrderCard({ order, compact = false, onClick }) {
             {moreItems > 0 && <div className="text-xs text-slate-400">+ อีก {moreItems} รายการ</div>}
           </div>
 
-          {/* meta */}
           <div className="space-y-1 text-xs text-slate-500">
             {order.phone     && <div className="flex items-center gap-1"><Phone size={12} /> {order.phone}</div>}
             {order.location  && <div className="flex items-start gap-1"><MapPin size={12} className="mt-0.5" /> <span className="line-clamp-2">{order.location}</span></div>}
@@ -64,7 +87,6 @@ export default function OrderCard({ order, compact = false, onClick }) {
         </>
       )}
 
-      {/* footer */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
         <div className="flex items-center gap-1">
           {isPaid
