@@ -1,10 +1,11 @@
-import { Calendar, LayoutGrid, ChefHat } from 'lucide-react';
+import { Calendar, LayoutGrid, ChefHat, History } from 'lucide-react';
 
-// [v0.2] reorder: ปฏิทินก่อน (main dashboard) → Kanban → ผลิต
+// [v0.2] ปฏิทิน → Kanban → ผลิต → [v0.9] ประวัติ
 const tabs = [
   { key: 'calendar',   label: 'ปฏิทิน',  Icon: Calendar   },
   { key: 'kanban',     label: 'Kanban',  Icon: LayoutGrid },
-  { key: 'production', label: 'ผลิต',    Icon: ChefHat    }
+  { key: 'production', label: 'ผลิต',    Icon: ChefHat    },
+  { key: 'audit',      label: 'ประวัติ', Icon: History    }
 ];
 
 export default function TabNav({ value, onChange }) {

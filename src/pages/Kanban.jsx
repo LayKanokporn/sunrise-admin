@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { useModals } from '../App';
 import OrderCard from '../components/OrderCard';
+import InlineStatusBar from '../components/InlineStatusBar';
 import AddOrderModal from '../components/AddOrderModal';
 import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
 import BulkActionBar from '../components/BulkActionBar';
@@ -85,15 +86,19 @@ export default function Kanban() {
             </div>
             <div className="space-y-3">
               {col.orders.map((o) => (
-                <OrderCard
-                  key={o.orderId}
-                  order={o}
-                  compact
-                  onClick={() => modals.openOrder(o)}
-                  selected={selectedIds.has(o.orderId)}
-                  onToggleSelect={toggleSelect}
-                  onCustomerClick={modals.openCustomer}
-                />
+                <div key={o.orderId}>
+                  <OrderCard
+                    order={o}
+                    compact
+                    showInlineActions={false}
+                    onClick={() => modals.openOrder(o)}
+                    selected={selectedIds.has(o.orderId)}
+                    onToggleSelect={toggleSelect}
+                    onCustomerClick={modals.openCustomer}
+                  />
+                  {/* [inline status] กดเลื่อนสถานะบนการ์ดเลย */}
+                  <InlineStatusBar order={o} />
+                </div>
               ))}
               {col.orders.length === 0 && (
                 <div className="text-xs text-slate-400 text-center py-4">— ว่าง —</div>

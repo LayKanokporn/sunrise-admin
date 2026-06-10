@@ -1,24 +1,28 @@
-// [v0.1] App shell — Auth + Tab nav + 3 pages
-// [v0.8] เพิ่ม SearchModal + OrderDetailModal + CustomerProfileModal (global)
-import { useState } from 'react';
+// [v0.1] App shell — Auth + Tab nav + pages
+// [v0.8] Search + OrderDetail + CustomerProfile (global modals)
+// [v0.9] Toast + deep link + audit tab
+import { useState, useEffect, createContext, useContext } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './lib/auth';
+import { api } from './lib/api';
 import TopBar from './components/TopBar';
 import TabNav from './components/TabNav';
 import SearchModal from './components/SearchModal';
 import OrderDetailModal from './components/OrderDetailModal';
 import CustomerProfileModal from './components/CustomerProfileModal';
+import ToastContainer from './components/ToastContainer';
 import Kanban from './pages/Kanban';
 import CalendarPage from './pages/Calendar';
 import Production from './pages/Production';
+import AuditLog from './pages/AuditLog';
 
-// [v0.8] Modal context — เปิด modal ได้จากทุกที่ในแอป
-import { createContext, useContext } from 'react';
 const ModalCtx = createContext(null);
 export const useModals = () => useContext(ModalCtx);
 
 function AppInner() {
   const { loading, isAdmin, profile, error } = useAuth();
-  const [tab, setTab] = useState('calendar'); // [v0.2] default = ปฏิทิน main dashboard
+  const qc = useQueryClient();
+  const [tab, setTab] = useState('calendar');
   const [showSearch, setShowSearch] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -28,6 +32,21 @@ function AppInner() {
     openCustomer: (name) => setSelectedCustomer(name),
     openSearch: () => setShowSearch(true)
   };
+
+  // [Deep link] ?order=ORD-... → เปิด modal ใบนั้นทันที
+  useEffect(() => {
+    if (!isAdmin) return;
+    const params = new URLSearchParams(window.location.search);
+    const oid = params.get('order');
+    if (oid) {
+      api.search(oid, 1).then((r) => {
+        const o = (r.orders || []).find((x) => x.orderId === oid) || r.orders?.[0];
+        if (o) setSelectedOrder(o);
+      }).catch(() => {});
+      // ล้าง param ออกจาก URL (ไม่ให้เปิดซ้ำตอน refetch)
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [isAdmin]);
 
   if (loading) {
     return (
@@ -75,27 +94,21 @@ function AppInner() {
 
   return (
     <ModalCtx.Provider value={modals}>
-      <div className="min-h-screen">
+      <div className="min-h-screen pb-20">
         <TopBar profile={profile} onOpenSearch={() => setShowSearch(true)} />
         <TabNav value={tab} onChange={setTab} />
         <main className="max-w-7xl mx-auto p-4">
-          {tab === 'kanban'     && <Kanban />}
           {tab === 'calendar'   && <CalendarPage />}
+          {tab === 'kanban'     && <Kanban />}
           {tab === 'production' && <Production />}
+          {tab === 'audit'      && <AuditLog />}
         </main>
 
-        {/* [v0.8] Global modals */}
         {showSearch && (
-          <SearchModal
-            onClose={() => setShowSearch(false)}
-            onPickOrder={(o) => setSelectedOrder(o)}
-          />
+          <SearchModal onClose={() => setShowSearch(false)} onPickOrder={(o) => setSelectedOrder(o)} />
         )}
         {selectedOrder && (
-          <OrderDetailModal
-            order={selectedOrder}
-            onClose={() => setSelectedOrder(null)}
-          />
+          <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
         )}
         {selectedCustomer && (
           <CustomerProfileModal
@@ -104,6 +117,9 @@ function AppInner() {
             onPickOrder={(o) => setSelectedOrder(o)}
           />
         )}
+
+        {/* [v0.9] global toast */}
+        <ToastContainer />
       </div>
     </ModalCtx.Provider>
   );

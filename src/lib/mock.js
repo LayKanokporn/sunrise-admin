@@ -247,5 +247,14 @@ export const mock = {
       name:m.name, perPiece:m.unit==='ชิ้น'?m.price:0, perWong:m.unit==='วง'?m.price:0,
       defaultUnit:m.unit, source:'master', usedCount:Math.floor(Math.random()*30)
     }))
+  }),
+  audit: (limit) => Promise.resolve({
+    ok:true,
+    entries: ALL.slice(0, limit || 50).map((o, i) => ({
+      orderId:o.orderId, customerName:o.customerName, status:o.status,
+      grandTotal:o.grandTotal, isUrgent:o.isUrgent, isCancelled:false,
+      updatedAt: fmtTH(today) + ' ' + String(10+(i%12)).padStart(2,'0') + ':' + String((i*7)%60).padStart(2,'0') + ':00',
+      updatedBy: i%3===0 ? '📱 เว็บ (U4e4f3fa)' : i%3===1 ? '💬 LINE' : '📄 Sheet'
+    }))
   })
 };

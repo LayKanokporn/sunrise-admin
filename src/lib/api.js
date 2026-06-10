@@ -61,5 +61,6 @@ export const api = USE_MOCK ? mock : {
   search:     (q, limit)        => call('search', { q, limit }),
   customer:   (name)            => call('customer', { name }),
   menus:      ()                => call('menus'),
-  newcount:   (since)           => call('newcount', { since })
+  newcount:   (since)           => call('newcount', { since }),
+  audit:      (limit)           => call('audit', { limit })
 };
