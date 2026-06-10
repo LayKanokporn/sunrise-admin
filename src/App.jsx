@@ -34,16 +34,32 @@ function AppInner() {
   };
 
   // [Deep link] ?order=ORD-... → เปิด modal ใบนั้นทันที
+  // [Deep link] ?month=YYYY-MM → ไปแท็บ Calendar ของเดือนนั้น
+  // [Deep link] ?tab=kanban|production|audit|calendar → สลับแท็บ
   useEffect(() => {
     if (!isAdmin) return;
     const params = new URLSearchParams(window.location.search);
+
+    const reqTab = params.get('tab');
+    if (reqTab && ['calendar','kanban','production','audit'].includes(reqTab)) {
+      setTab(reqTab);
+    }
+
+    const month = params.get('month');
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      setTab('calendar');
+      try { sessionStorage.setItem('sunrise_deeplink_month', month); } catch(_) {}
+    }
+
     const oid = params.get('order');
     if (oid) {
       api.search(oid, 1).then((r) => {
         const o = (r.orders || []).find((x) => x.orderId === oid) || r.orders?.[0];
         if (o) setSelectedOrder(o);
       }).catch(() => {});
-      // ล้าง param ออกจาก URL (ไม่ให้เปิดซ้ำตอน refetch)
+    }
+
+    if (oid || month || reqTab) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [isAdmin]);
@@ -80,11 +96,25 @@ function AppInner() {
           <div className="font-bold text-lg mb-2">ไม่มีสิทธิ์เข้าใช้งาน</div>
           <div className="text-sm text-slate-600">
             ระบบนี้สำหรับแอดมินเท่านั้น<br/>
-            ติดต่อพี่หม่อนเพื่อขอสิทธิ์
+            ส่ง User ID ด้านล่างให้พี่หม่อนเพื่อขอสิทธิ์
           </div>
           {profile && (
-            <div className="mt-4 text-xs text-slate-400 font-mono">
-              {profile.userId.substring(0,8)}...{profile.userId.substring(28)}
+            <div className="mt-4">
+              <div className="text-xs text-slate-400 mb-1">User ID ของคุณ (33 ตัว)</div>
+              {/* แสดงเต็ม + กดเพื่อ copy */}
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(profile.userId);
+                  alert('คัดลอก User ID แล้ว:\n' + profile.userId);
+                }}
+                className="w-full bg-slate-100 hover:bg-slate-200 rounded-lg p-3 font-mono text-xs break-all text-slate-700 transition-colors">
+                {profile.userId}
+                <div className="text-[10px] text-sunrise-600 mt-1">📋 แตะเพื่อคัดลอก</div>
+              </button>
+              <div className="text-[10px] text-slate-400 mt-2">
+                ความยาว: {profile.userId.length} ตัว
+                {profile.userId.length !== 33 && ' ⚠️ ควรเป็น 33'}
+              </div>
             </div>
           )}
         </div>

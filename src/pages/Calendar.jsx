@@ -49,7 +49,19 @@ function getMonthMatrix(year, month) {
 
 export default function CalendarPage() {
   const today = useMemo(() => new Date(), []);
-  const [anchor, setAnchor] = useState(today);
+  // [v0.10] รับ deep link ?month=YYYY-MM (เก็บไว้ใน sessionStorage โดย App.jsx)
+  const initialAnchor = useMemo(() => {
+    try {
+      const m = sessionStorage.getItem('sunrise_deeplink_month');
+      if (m && /^\d{4}-\d{2}$/.test(m)) {
+        sessionStorage.removeItem('sunrise_deeplink_month');
+        const [y, mo] = m.split('-');
+        return new Date(+y, +mo - 1, 1);
+      }
+    } catch(_) {}
+    return new Date();
+  }, []);
+  const [anchor, setAnchor] = useState(initialAnchor);
   const [picked, setPicked] = useState(fmtISO(today));
   // [v0.5] modal state
   const [showAdd, setShowAdd] = useState(false);

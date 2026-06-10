@@ -29,6 +29,20 @@ export function AuthProvider({ children }) {
           error:null });
         return;
       }
+
+      // [v0.10] sessionStorage cache — ลด GAS cold start สำหรับ visit ซ้ำในวันเดียวกัน
+      const CACHE_KEY = 'sunrise_auth_v1';
+      const CACHE_TTL = 8 * 60 * 60 * 1000; // 8 ชั่วโมง
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+        if (cached && Date.now() - cached.ts < CACHE_TTL) {
+          log('INFO', 'init', 'using cached auth', { userId: cached.profile.userId.substring(0,8)+'...' });
+          if (cached.isAdmin) setAuthUid(cached.profile.userId);
+          setState({ loading: false, isAdmin: cached.isAdmin, profile: cached.profile, error: null });
+          return;
+        }
+      } catch(_) { sessionStorage.removeItem(CACHE_KEY); }
+
       try {
         const liffId = import.meta.env.VITE_LIFF_ID;
         if (!liffId) throw new Error('VITE_LIFF_ID not set in .env');
@@ -45,16 +59,25 @@ export function AuthProvider({ children }) {
         const profile = await liff.getProfile();
         log('INFO', 'init', 'got profile', { userId: profile.userId.substring(0,8) + '...' });
 
-        const verify = await api.verify(profile.userId);
-        log('INFO', 'init', 'verify result', { isAdmin: verify.isAdmin });
-        if (verify.isAdmin) setAuthUid(profile.userId);
+        // [v0.10] OPEN_ACCESS mode — ข้าม verify ทั้งหมด ทุกคนเป็น admin
+        const openAccess = String(import.meta.env.VITE_OPEN_ACCESS||'').toLowerCase() === 'true';
+        let isAdmin = openAccess;
+        if (!openAccess) {
+          const verify = await api.verify(profile.userId);
+          log('INFO', 'init', 'verify result', { isAdmin: verify.isAdmin });
+          isAdmin = verify.isAdmin;
+        } else {
+          log('INFO', 'init', 'OPEN_ACCESS=true — skipping verify');
+        }
 
-        setState({
-          loading: false,
-          isAdmin: verify.isAdmin,
-          profile,
-          error: null
-        });
+        if (isAdmin) setAuthUid(profile.userId);
+
+        // บันทึก cache
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), isAdmin, profile }));
+        } catch(_) {}
+
+        setState({ loading: false, isAdmin, profile, error: null });
       } catch(e) {
         log('ERROR', 'init', e.message, { stack: e.stack });
         setState({ loading: false, isAdmin: false, profile: null, error: e.message });
