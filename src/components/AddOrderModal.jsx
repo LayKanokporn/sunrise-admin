@@ -16,22 +16,31 @@ export default function AddOrderModal({ onClose }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  // [v0.11/B3] duplicate guard — server ตอบ duplicate:true → ถามยืนยันก่อนบันทึกซ้ำ
+  const [dupConfirm, setDupConfirm] = useState(null);
 
-  async function submit() {
+  async function submit(force = false) {
     if (!text.trim()) return;
-    setBusy(true); setResult(null);
+    setBusy(true); setResult(null); setDupConfirm(null);
     try {
-      const r = await api.parseSave(text);
+      const r = await api.parseSave(text, force);
       if (r.ok) {
         setResult({ type:'success', msg:`✅ บันทึก ${r.orderId} | ${r.customer} | ${r.items} รายการ | ฿${r.total.toLocaleString()}` });
         setText('');
         qc.invalidateQueries();
         setTimeout(() => { onClose(); }, 1800);
+      } else if (r.duplicate) {
+        setDupConfirm({ msg: r.error, existingOrderId: r.existingOrderId });
       } else {
         setResult({ type:'error', msg:'❌ ' + (r.error || 'ไม่สามารถบันทึก') });
       }
     } catch(e) {
-      setResult({ type:'error', msg:'❌ ' + e.message });
+      // api.js throw เมื่อ ok=false — เช็คว่าเป็น duplicate message ไหม
+      if (/ที่บันทึกไปแล้ว|อยู่แล้ว/.test(e.message)) {
+        setDupConfirm({ msg: e.message, existingOrderId: null });
+      } else {
+        setResult({ type:'error', msg:'❌ ' + e.message });
+      }
     } finally { setBusy(false); }
   }
 
@@ -69,6 +78,23 @@ export default function AddOrderModal({ onClose }) {
             <div className="text-xs text-slate-400">{text.length} ตัวอักษร</div>
           </div>
 
+          {dupConfirm && (
+            <div className="p-3 rounded-lg text-sm bg-amber-50 text-amber-800 border border-amber-200 space-y-2">
+              <div className="font-semibold">⚠️ พบออเดอร์ซ้ำ</div>
+              <div>{dupConfirm.msg}</div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => submit(true)} disabled={busy}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50">
+                  บันทึกซ้ำยืนยัน
+                </button>
+                <button onClick={() => setDupConfirm(null)}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-semibold">
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          )}
+
           {result && (
             <div className={'p-3 rounded-lg text-sm ' +
               (result.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
@@ -88,7 +114,7 @@ export default function AddOrderModal({ onClose }) {
 
         <div className="p-3 border-t border-slate-200">
           <button
-            onClick={submit}
+            onClick={() => submit(false)}
             disabled={busy || !text.trim()}
             className="btn btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
             <Send size={16} />

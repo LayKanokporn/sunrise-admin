@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './index.css';
 
 // [v0.7] cache aggressive — Apps Script ช้า + ใช้ response cache 60s server-side
@@ -24,8 +25,19 @@ console.log('[INFO] [main] mounting app');
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>
 );
+
+// [v0.11/W2] PWA — register service worker (production เท่านั้น)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => console.log('[INFO] [main] service worker registered'))
+      .catch((e) => console.log('[WARN] [main] sw register failed: ' + e.message));
+  });
+}

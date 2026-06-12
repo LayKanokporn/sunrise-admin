@@ -49,10 +49,15 @@ function getMonthMatrix(year, month) {
 
 export default function CalendarPage() {
   const today = useMemo(() => new Date(), []);
-  // [v0.10] รับ deep link ?month=YYYY-MM (เก็บไว้ใน sessionStorage โดย App.jsx)
+  // [v0.10] รับ deep link ?month=YYYY-MM
+  //   อ่าน URL ตรง ๆ ก่อน (Calendar mount ก่อน App effect เขียน sessionStorage)
+  //   sessionStorage เป็น fallback กรณีสลับแท็บแล้วกลับมา
   const initialAnchor = useMemo(() => {
     try {
-      const m = sessionStorage.getItem('sunrise_deeplink_month');
+      const fromUrl = new URLSearchParams(window.location.search).get('month');
+      const m = (fromUrl && /^\d{4}-\d{2}$/.test(fromUrl))
+        ? fromUrl
+        : sessionStorage.getItem('sunrise_deeplink_month');
       if (m && /^\d{4}-\d{2}$/.test(m)) {
         sessionStorage.removeItem('sunrise_deeplink_month');
         const [y, mo] = m.split('-');

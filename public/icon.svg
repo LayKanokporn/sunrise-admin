@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#FF6B35"/>
+  <circle cx="256" cy="218" r="110" fill="#FFF7ED"/>
+  <circle cx="222" cy="200" r="14" fill="#1F2937"/>
+  <circle cx="290" cy="200" r="14" fill="#1F2937"/>
+  <path d="M256 238 l-20 24 h40 z" fill="#F59E0B"/>
+  <path d="M226 120 q10 -36 30 -36 q20 0 30 36 q-14 -10 -30 -10 q-16 0 -30 10z" fill="#EF4444"/>
+  <rect x="146" y="356" width="220" height="44" rx="22" fill="#FFF7ED"/>
+  <text x="256" y="388" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="bold" fill="#FF6B35">SUNRISE</text>
+</svg>

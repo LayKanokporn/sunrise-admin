@@ -11,6 +11,8 @@ import SearchModal from './components/SearchModal';
 import OrderDetailModal from './components/OrderDetailModal';
 import CustomerProfileModal from './components/CustomerProfileModal';
 import ToastContainer from './components/ToastContainer';
+import OfflineBanner from './components/OfflineBanner';
+import { usePullToRefresh } from './lib/usePullToRefresh';
 import Kanban from './pages/Kanban';
 import CalendarPage from './pages/Calendar';
 import Production from './pages/Production';
@@ -18,6 +20,21 @@ import AuditLog from './pages/AuditLog';
 
 const ModalCtx = createContext(null);
 export const useModals = () => useContext(ModalCtx);
+
+// [v0.11/W3] ตัวบอกสถานะ pull-to-refresh (มือถือ: ลากลงจากบนสุด)
+function PullIndicator() {
+  const { pull, refreshing, threshold } = usePullToRefresh();
+  if (!pull && !refreshing) return null;
+  const ready = pull >= threshold;
+  return (
+    <div className="fixed top-0 inset-x-0 z-[90] flex justify-center pointer-events-none"
+         style={{ transform: `translateY(${refreshing ? 12 : Math.max(pull - 30, 0)}px)`, transition: refreshing ? 'transform .2s' : 'none' }}>
+      <div className={`rounded-full shadow px-4 py-2 text-xs font-semibold bg-white ${ready || refreshing ? 'text-orange-600' : 'text-slate-400'}`}>
+        {refreshing ? 'กำลังอัปเดต...' : ready ? 'ปล่อยเพื่ออัปเดต' : 'ลากลงเพื่ออัปเดต'}
+      </div>
+    </div>
+  );
+}
 
 function AppInner() {
   const { loading, isAdmin, profile, error } = useAuth();
@@ -125,6 +142,8 @@ function AppInner() {
   return (
     <ModalCtx.Provider value={modals}>
       <div className="min-h-screen pb-20">
+        <OfflineBanner />
+        <PullIndicator />
         <TopBar profile={profile} onOpenSearch={() => setShowSearch(true)} />
         <TabNav value={tab} onChange={setTab} />
         <main className="max-w-7xl mx-auto p-4">

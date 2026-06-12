@@ -26,7 +26,8 @@ async function call(action, params = {}) {
     const res = await fetch(url.toString(), { method: 'GET' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || 'API returned ok=false');
+    // [v0.11/B3] duplicate ไม่ใช่ error — ส่งกลับให้ UI ถามยืนยัน
+    if (!json.ok && !json.duplicate) throw new Error(json.error || 'API returned ok=false');
     log('TRACE', action, `${Math.round(performance.now()-t0)}ms`);
     return json;
   } catch(e) {
@@ -56,7 +57,7 @@ export const api = USE_MOCK ? mock : {
   note:       (orderId, value)  => call('note',   { uid:_currentUid, orderId, value }),
   addItem:    (orderId, item)   => call('addItem', { uid:_currentUid, orderId, ...item }),
   removeItem: (orderId, menu)   => call('removeItem', { uid:_currentUid, orderId, menu }),
-  parseSave:  (text)            => call('parseSave', { uid:_currentUid, text }),
+  parseSave:  (text, force)     => call('parseSave', { uid:_currentUid, text, force: force ? 1 : '' }),
   // [v0.8] new endpoints
   search:     (q, limit)        => call('search', { q, limit }),
   customer:   (name)            => call('customer', { name }),
