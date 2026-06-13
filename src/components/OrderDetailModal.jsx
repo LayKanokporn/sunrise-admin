@@ -12,6 +12,18 @@ const statusOptions = [
   { value:'completed', label:'🎉 ส่งแล้ว'  }
 ];
 
+// [#orderlog] แปลง action เป็นภาษาไทย
+const ACTION_LABEL = {
+  update:'แก้ข้อมูล', status:'เปลี่ยนสถานะ', paid:'ชำระเงิน', urgent:'ตั้ง/ปลดด่วน',
+  cancel:'ยกเลิก', note:'แก้โน้ต', additem:'เพิ่มเมนู', removeitem:'ลบเมนู', announce:'ประกาศกลุ่ม'
+};
+const TH_MONTHS_ = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function fmtLogTime(raw) {
+  const m = String(raw||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (m) return `${+m[1]} ${TH_MONTHS_[+m[2]-1]} ${m[4].padStart(2,'0')}:${m[5]}`;
+  return String(raw||'-');
+}
+
 export default function OrderDetailModal({ order, onClose }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState('detail');
@@ -19,6 +31,8 @@ export default function OrderDetailModal({ order, onClose }) {
   const [newItem, setNewItem] = useState({ menu:'', qty:1, unit:'ชิ้น', price:0 });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  // [#conflict] เวลาแก้ล่าสุดตอนเปิด — ใช้ตรวจว่ามีคนอื่นแก้ทับระหว่างนี้ไหม
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState(order.updatedAt || '');
 
   useEffect(() => {
     setEdit({
@@ -28,7 +42,32 @@ export default function OrderDetailModal({ order, onClose }) {
       location: order.location || '',
       note: order.note || ''
     });
+    setBaseUpdatedAt(order.updatedAt || '');
   }, [order.orderId]);
+
+  // [#orderlog] timeline การแก้ไขของออเดอร์นี้ — โหลดเมื่อเข้าแท็บประวัติ
+  const logQ = useQuery({
+    queryKey: ['orderlog', order.orderId],
+    queryFn: () => api.orderlog(order.orderId),
+    enabled: tab === 'log',
+    staleTime: 15_000
+  });
+
+  // [#conflict] ก่อนบันทึก เช็คว่ามีคนแก้ทับหรือยัง (เทียบ updatedAt ปัจจุบันกับตอนเปิด)
+  async function checkConflict() {
+    if (!baseUpdatedAt || !order.deliveryDateISO) return true; // ไม่มี baseline → ผ่าน
+    try {
+      const r = await api.orders({ date: order.deliveryDateISO });
+      const fresh = (r.orders || []).find((o) => o.orderId === order.orderId);
+      if (fresh && fresh.updatedAt && fresh.updatedAt !== baseUpdatedAt) {
+        const who = (fresh.updatedBy || '').replace(/^liff:/, '') || 'คนอื่น';
+        const ok = confirm(`⚠️ มีการแก้ออเดอร์นี้หลังจากคุณเปิด\nล่าสุด: ${fmtLogTime(fresh.updatedAt)} โดย ${who}\n\nบันทึกทับต่อไหม?`);
+        if (ok) setBaseUpdatedAt(fresh.updatedAt); // ยอมรับ → อัปเดต baseline
+        return ok;
+      }
+    } catch(_) { /* เช็คไม่ได้ → ปล่อยผ่าน ไม่บล็อกงาน */ }
+    return true;
+  }
 
   const refetchAll = () => qc.invalidateQueries();
   const flash = (text, type='success') => {
@@ -48,7 +87,10 @@ export default function OrderDetailModal({ order, onClose }) {
     } finally { setBusy(false); }
   }
 
-  const saveFields = () => run('บันทึก', () => api.update(order.orderId, edit));
+  const saveFields = async () => {
+    if (!(await checkConflict())) { flash('ยกเลิกการบันทึก', 'error'); return; }
+    run('บันทึก', () => api.update(order.orderId, edit));
+  };
   const toggleUrgent = () => run(order.isUrgent ? 'ปลดด่วน' : 'ตั้งด่วน',
     () => api.urgent(order.orderId, !order.isUrgent));
   const markPaid = () => run('mark ชำระแล้ว', () => api.paid(order.orderId));
@@ -81,9 +123,9 @@ export default function OrderDetailModal({ order, onClose }) {
   const isPaid = (order.paymentStatus || '').toLowerCase() === 'paid';
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4 lg:bg-transparent lg:pointer-events-none lg:p-0 lg:block" onClick={onClose}>
       <div
-        className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[95vh] flex flex-col"
+        className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[95vh] flex flex-col lg:pointer-events-auto lg:fixed lg:inset-y-0 lg:right-0 lg:w-[420px] lg:max-w-none lg:max-h-screen lg:rounded-none lg:rounded-l-2xl lg:shadow-2xl lg:border-l lg:border-slate-200"
         onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
@@ -100,11 +142,11 @@ export default function OrderDetailModal({ order, onClose }) {
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200">
-          {['detail','items','action'].map((t) => (
+          {['detail','items','action','log'].map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={'flex-1 py-2 text-sm font-medium ' +
                 (tab === t ? 'border-b-2 border-sunrise-500 text-sunrise-600' : 'text-slate-500')}>
-              {t === 'detail' ? '📝 ข้อมูล' : t === 'items' ? '🍰 รายการ' : '⚡ จัดการ'}
+              {t === 'detail' ? '📝 ข้อมูล' : t === 'items' ? '🍰 รายการ' : t === 'action' ? '⚡ จัดการ' : '🕘 ประวัติ'}
             </button>
           ))}
         </div>
@@ -208,6 +250,29 @@ export default function OrderDetailModal({ order, onClose }) {
               </div>
             </div>
           )}
+
+          {/* [#orderlog] ประวัติการแก้ไขของออเดอร์นี้ */}
+          {tab === 'log' && (
+            <div className="space-y-2">
+              {logQ.isLoading && <div className="text-center text-slate-400 py-8 text-sm">⏳ กำลังโหลด...</div>}
+              {!logQ.isLoading && (logQ.data?.entries || []).length === 0 && (
+                <div className="text-center text-slate-400 py-8 text-sm">
+                  — ยังไม่มีประวัติการแก้ไข —<br/>
+                  <span className="text-[11px]">(บันทึกเริ่มนับจากการแก้ครั้งถัดไป)</span>
+                </div>
+              )}
+              {(logQ.data?.entries || []).map((e, i) => (
+                <div key={i} className="flex items-start gap-3 py-2 border-b border-slate-100 last:border-b-0">
+                  <div className="w-2 h-2 rounded-full bg-sunrise-400 mt-1.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">{ACTION_LABEL[e.action] || e.action}</div>
+                    <div className="text-xs text-slate-400">{e.by}</div>
+                  </div>
+                  <div className="text-xs text-slate-500 shrink-0">{fmtLogTime(e.at)}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Footer total */}
@@ -236,12 +301,12 @@ function Field({ label, value, onChange, placeholder, multiline, icon }) {
       </div>
       {multiline ? (
         <textarea
-          value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+          value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
           rows={2}
           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm resize-none" />
       ) : (
         <input
-          type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+          type="text" value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
       )}
     </label>

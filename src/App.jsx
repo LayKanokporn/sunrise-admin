@@ -13,10 +13,12 @@ import CustomerProfileModal from './components/CustomerProfileModal';
 import ToastContainer from './components/ToastContainer';
 import OfflineBanner from './components/OfflineBanner';
 import { usePullToRefresh } from './lib/usePullToRefresh';
+import { usePrefs } from './lib/prefs';
 // [v0.13/S1] ปฏิทินเป็นหน้าแรก → โหลด static / แท็บที่เหลือ lazy (โหลดเมื่อกดเข้า)
 //   ลด JS bundle แรกที่ต้อง parse ตอนเปิดเว็บ
 import CalendarPage from './pages/Calendar';
 const Kanban     = lazy(() => import('./pages/Kanban'));
+const Timeline   = lazy(() => import('./pages/Timeline'));
 const Production = lazy(() => import('./pages/Production'));
 const AuditLog   = lazy(() => import('./pages/AuditLog'));
 
@@ -40,6 +42,7 @@ function PullIndicator() {
 
 function AppInner() {
   const { loading, isAdmin, profile, error } = useAuth();
+  const prefs = usePrefs();
   const qc = useQueryClient();
   const [tab, setTab] = useState('calendar');
   const [showSearch, setShowSearch] = useState(false);
@@ -60,7 +63,7 @@ function AppInner() {
     const params = new URLSearchParams(window.location.search);
 
     const reqTab = params.get('tab');
-    if (reqTab && ['calendar','kanban','production','audit'].includes(reqTab)) {
+    if (reqTab && ['calendar','kanban','timeline','production','audit'].includes(reqTab)) {
       setTab(reqTab);
     }
 
@@ -143,16 +146,18 @@ function AppInner() {
 
   return (
     <ModalCtx.Provider value={modals}>
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen pb-20" data-density={prefs.density} data-cb={prefs.colorBlind ? '1' : '0'}>
         <OfflineBanner />
         <PullIndicator />
         <TopBar profile={profile} onOpenSearch={() => setShowSearch(true)} />
         <TabNav value={tab} onChange={setTab} />
-        <main className="max-w-7xl mx-auto p-4">
+        {/* [#split] เมื่อมี order panel ค้างขวา (lg) → เว้นที่ไม่ให้ทับลิสต์ */}
+        <main className={'max-w-7xl mx-auto p-4 transition-[padding] ' + (selectedOrder ? 'lg:pr-[440px]' : '')}>
           {tab === 'calendar' && <CalendarPage />}
           {tab !== 'calendar' && (
             <Suspense fallback={<div className="text-center text-slate-400 py-12">กำลังโหลด...</div>}>
               {tab === 'kanban'     && <Kanban />}
+              {tab === 'timeline'   && <Timeline />}
               {tab === 'production' && <Production />}
               {tab === 'audit'      && <AuditLog />}
             </Suspense>

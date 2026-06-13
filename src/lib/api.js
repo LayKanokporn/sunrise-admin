@@ -67,5 +67,7 @@ export const api = USE_MOCK ? mock : {
   customer:   (name)            => call('customer', { name }),
   menus:      ()                => call('menus'),
   newcount:   (since)           => call('newcount', { since }),
-  audit:      (limit)           => call('audit', { limit })
+  audit:      (limit)           => call('audit', { limit }),
+  // [#orderlog] timeline การแก้ไขของออเดอร์เดียว
+  orderlog:   (orderId)         => call('orderlog', { orderId })
 };

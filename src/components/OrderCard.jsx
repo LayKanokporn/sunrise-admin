@@ -1,8 +1,9 @@
 // [v0.9] OrderCard — inline action buttons + color code + bulk select + customer click
-import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil, Banknote, Copy } from 'lucide-react';
+import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil, Banknote, Copy, Star } from 'lucide-react';
 import { useOrderActions } from '../lib/useOrderActions';
 import { toast } from '../lib/toast';
 import { buzz } from '../lib/haptic';
+import { prefs, usePrefs } from '../lib/prefs';
 
 // [#8] copy ข้อความเข้า clipboard + haptic + toast
 function copyText(text, label) {
@@ -48,6 +49,8 @@ export default function OrderCard({
   showInlineActions = true   // [B1] ปุ่มบนการ์ด
 }) {
   const actions = useOrderActions();
+  const p = usePrefs();                          // [#prefs] re-render เมื่อ pin เปลี่ยน
+  const pinned = p.pins.includes(order.orderId); // [#pin] ปักหมุด
   const isPaid = (order.paymentStatus || '').toLowerCase() === 'paid';
   const isDelivered = /completed|delivered|ส่งแล้ว/.test((order.status || '').toLowerCase());
   const isCancelled = order.status === '❌ ยกเลิก';
@@ -65,8 +68,9 @@ export default function OrderCard({
         onClick?.();
       }}
       className={
-        'card relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow border-l-4 ' +
+        'order-card card relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow border-l-4 ' +
         style.border + ' ' + style.bg + ' ' +
+        (pinned ? 'ring-1 ring-amber-300 ' : '') +
         (selected ? 'ring-2 ring-sunrise-500 ' : '')
       }>
 
@@ -98,16 +102,35 @@ export default function OrderCard({
           </button>
           <div className="text-xs text-slate-500 truncate">{order.orderId}</div>
         </div>
-        {order.deliveryTime && (
-          <div className="text-sm font-medium text-slate-700 flex items-center gap-1 shrink-0">
-            <Clock size={14} /> {order.deliveryTime}
-          </div>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {order.deliveryTime && (
+            <div className="text-sm font-medium text-slate-700 flex items-center gap-1">
+              <Clock size={14} /> {order.deliveryTime}
+            </div>
+          )}
+          {/* [#pin] ปักหมุด — ลอยขึ้นบนสุด */}
+          <button
+            data-no-card-click
+            onClick={(e) => { stop(e); const on = prefs.togglePin(order.orderId); buzz(8); toast.success(on ? 'ปักหมุดแล้ว' : 'ปลดหมุดแล้ว'); }}
+            title={pinned ? 'ปลดหมุด' : 'ปักหมุดขึ้นบน'}
+            className={'p-0.5 rounded-full transition-colors ' +
+              (pinned ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400')}>
+            <Star size={15} fill={pinned ? 'currentColor' : 'none'} />
+          </button>
+        </div>
       </div>
+
+      {/* [#note] โน้ตด่วน — แปะเหลืองเห็นเด่น ไม่ต้องเปิด detail */}
+      {(order.note || '').trim() && (
+        <div className="flex items-start gap-1.5 mb-2 px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+          <span className="shrink-0 font-bold">!</span>
+          <span className="whitespace-pre-wrap break-words">{order.note}</span>
+        </div>
+      )}
 
       {!compact && (
         <>
-          <div className="text-sm space-y-1 mb-2">
+          <div className="card-items text-sm space-y-1 mb-2">
             {firstItems.map((it, i) => (
               <div key={i} className="flex justify-between gap-2 text-slate-700">
                 <span className="truncate">• {it.menuName}</span>

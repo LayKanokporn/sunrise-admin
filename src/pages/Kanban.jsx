@@ -10,6 +10,7 @@ import AddOrderModal from '../components/AddOrderModal';
 import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
 import BulkActionBar from '../components/BulkActionBar';
 import { SkeletonOrderCard } from '../components/Skeleton';
+import { usePrefs, sortPinned } from '../lib/prefs';
 import { Plus } from 'lucide-react';
 
 const columns = [
@@ -50,10 +51,11 @@ export default function Kanban() {
     queryFn: () => api.orders({ date })
   });
 
+  usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด
   const orders = applyOrderFilters(data?.orders || [], filters);
   const buckets = columns.map(c => ({
     ...c,
-    orders: orders.filter(c.match)
+    orders: sortPinned(orders.filter(c.match))
   }));
   const unmatched = orders.filter(o => !columns.some(c => c.match(o)));
   if (unmatched.length) buckets[0].orders.push(...unmatched);

@@ -1,12 +1,13 @@
-import { Calendar, LayoutGrid, ChefHat, History } from 'lucide-react';
+import { Calendar, LayoutGrid, ChefHat, History, Clock } from 'lucide-react';
 
 // [v0.2] ปฏิทิน → Kanban → ผลิต → [v0.9] ประวัติ
 // [v0.12/M5] มือถือ: bottom navigation (นิ้วโป้งกดถึง) / จอใหญ่: top tabs เหมือนเดิม
 const tabs = [
-  { key: 'calendar',   label: 'ปฏิทิน',  Icon: Calendar   },
-  { key: 'kanban',     label: 'Kanban',  Icon: LayoutGrid },
-  { key: 'production', label: 'ผลิต',    Icon: ChefHat    },
-  { key: 'audit',      label: 'ประวัติ', Icon: History    }
+  { key: 'calendar',   label: 'ปฏิทิน',   Icon: Calendar   },
+  { key: 'kanban',     label: 'Kanban',   Icon: LayoutGrid },
+  { key: 'timeline',   label: 'ไทม์ไลน์', Icon: Clock      },
+  { key: 'production', label: 'ผลิต',     Icon: ChefHat    },
+  { key: 'audit',      label: 'ประวัติ',  Icon: History    }
 ];
 
 export default function TabNav({ value, onChange }) {

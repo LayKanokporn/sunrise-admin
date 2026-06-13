@@ -52,8 +52,10 @@ function makeOrder(i, dayOffset) {
     kitchenStatus: i % 2 ? 'รอทำ' : 'รับงานแล้ว',
     isUrgent: i % 7 === 0,
     isPassed: dayOffset < 0,
-    note: '',
+    note: i % 5 === 0 ? 'ลูกค้าขอไม่ใส่ถั่ว แพ้นม' : '',
     googleMap: '',
+    updatedAt: fmtTH(d) + ' 09:00:00',
+    updatedBy: 'liff:mockadmin',
     items
   };
 }
@@ -263,5 +265,14 @@ export const mock = {
       updatedAt: fmtTH(today) + ' ' + String(10+(i%12)).padStart(2,'0') + ':' + String((i*7)%60).padStart(2,'0') + ':00',
       updatedBy: i%3===0 ? '📱 เว็บ (U4e4f3fa)' : i%3===1 ? '💬 LINE' : '📄 Sheet'
     }))
+  }),
+  // [#orderlog] timeline ราย order (mock)
+  orderlog: (orderId) => Promise.resolve({
+    ok: true, orderId,
+    entries: [
+      { at: fmtTH(today) + ' 11:02:08', action: 'status',  by: '📱 เว็บ (พี่หม่อน)' },
+      { at: fmtTH(today) + ' 10:45:30', action: 'paid',    by: '📱 เว็บ (พี่หม่อน)' },
+      { at: fmtTH(today) + ' 09:12:00', action: 'update',  by: '💬 LINE' }
+    ]
   })
 };

@@ -1,7 +1,8 @@
 // [v0.5] Add Order — paste text เหมือนในไลน์ → ระบบ parse + save
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { X, Sparkles, Send } from 'lucide-react';
+// [#quickadd] เลือกลูกค้าเก่า → เติมชื่อ/เบอร์/ที่อยู่ให้อัตโนมัติ
+import { useState, useEffect, useMemo } from 'react';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { X, Sparkles, Send, UserSearch } from 'lucide-react';
 import { api } from '../lib/api';
 
 const SAMPLE = `ออเดอร์รอบส่ง 12 มิถุนายน 2569 @ตัวอย่างร้าน
@@ -63,6 +64,14 @@ export default function AddOrderModal({ onClose }) {
             paste ข้อความออเดอร์เหมือนที่ส่งในไลน์ — ระบบจะ parse อัตโนมัติ
           </div>
 
+          {/* [#quickadd] เลือกลูกค้าเก่า → เติมหัวออเดอร์ให้ */}
+          <CustomerQuickFill onPick={(c) => {
+            const head = `ออเดอร์รอบส่ง  @${c.customerName}\n` +
+              (c.phone ? c.phone + '\n' : '') +
+              (c.location ? c.location + '\n' : '') + '\n';
+            setText((prev) => prev ? prev : head);
+          }} />
+
           <textarea
             value={text} onChange={(e) => setText(e.target.value)}
             placeholder={SAMPLE}
@@ -122,6 +131,70 @@ export default function AddOrderModal({ onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// [#quickadd] ค้นลูกค้าเก่า → dedupe ตามชื่อ → เลือกแล้วเติมเบอร์/ที่อยู่ล่าสุด
+function CustomerQuickFill({ onPick }) {
+  const [q, setQ] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(q.trim()), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const { data } = useQuery({
+    queryKey: ['quickadd-search', debounced],
+    queryFn: () => api.search(debounced, 20),
+    enabled: debounced.length >= 2,
+    staleTime: 60_000
+  });
+
+  // dedupe ตามชื่อลูกค้า — เก็บออเดอร์ล่าสุด (มีเบอร์/ที่อยู่)
+  const customers = useMemo(() => {
+    const seen = new Map();
+    (data?.orders || []).forEach((o) => {
+      const key = (o.customerName || '').trim();
+      if (!key) return;
+      const cur = seen.get(key);
+      if (!cur || (o.deliveryDateISO || '') > (cur.deliveryDateISO || '')) seen.set(key, o);
+    });
+    return [...seen.values()].slice(0, 8);
+  }, [data]);
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-300 bg-slate-50">
+        <UserSearch size={16} className="text-slate-400 shrink-0" />
+        <input
+          type="text"
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 200)}
+          placeholder="ลูกค้าเก่า? พิมพ์ชื่อเพื่อเติมเบอร์/ที่อยู่ให้..."
+          className="flex-1 bg-transparent text-sm focus:outline-none"
+        />
+      </div>
+      {open && debounced.length >= 2 && customers.length > 0 && (
+        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+          {customers.map((c, i) => (
+            <button
+              key={i}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onPick(c); setOpen(false); setQ(''); }}
+              className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 border-b border-slate-100 last:border-b-0">
+              <div className="font-medium truncate">{c.customerName}</div>
+              <div className="text-[11px] text-slate-400 truncate">
+                {[c.phone, c.location].filter(Boolean).join(' · ') || 'ไม่มีเบอร์/ที่อยู่'}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
