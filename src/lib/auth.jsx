@@ -1,6 +1,7 @@
 // [v0.1] Auth + LIFF init context
+// [v0.13/S2] LIFF dynamic import — โหลด @line/liff เฉพาะตอนต้อง init จริง
+//   (visit ที่มี cache / mock mode ข้ามไป ไม่ต้อง parse lib ที่หนัก)
 import { createContext, useContext, useEffect, useState } from 'react';
-import liff from '@line/liff';
 import { api, setAuthUid } from './api';
 
 const AuthCtx = createContext(null);
@@ -47,6 +48,8 @@ export function AuthProvider({ children }) {
         const liffId = import.meta.env.VITE_LIFF_ID;
         if (!liffId) throw new Error('VITE_LIFF_ID not set in .env');
 
+        // โหลด LIFF SDK เมื่อจำเป็นเท่านั้น (ไม่อยู่ใน bundle แรก)
+        const liff = (await import('@line/liff')).default;
         await liff.init({ liffId });
         log('INFO', 'init', 'LIFF initialized');
 

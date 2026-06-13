@@ -1,5 +1,5 @@
 // [v0.9] OrderCard — inline action buttons + color code + bulk select + customer click
-import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil } from 'lucide-react';
+import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil, Banknote } from 'lucide-react';
 import { useOrderActions } from '../lib/useOrderActions';
 
 // [D2] color code ตาม status — เห็นปุ๊บรู้ปั๊บ
@@ -117,10 +117,18 @@ export default function OrderCard({
       {/* [B1] inline action buttons — กดบนการ์ดเลย */}
       {showInlineActions && !isCancelled && (
         <div data-no-card-click onClick={stop} className="flex gap-1.5 mt-2 pt-2 border-t border-slate-100">
+          {/* [v0.13] ปุ่มชำระแล้ว — โชว์เฉพาะออเดอร์ที่ยังค้างชำระ (badge เด้งเขียวทันที) */}
+          {!isPaid && (
+            <button
+              onClick={() => actions.markPaid(order)}
+              className="flex-1 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-1">
+              <Banknote size={13} /> ชำระแล้ว
+            </button>
+          )}
           {!isDelivered ? (
             <button
               onClick={() => actions.markDelivered(order)}
-              className="flex-1 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-medium hover:bg-emerald-600 transition-colors flex items-center justify-center gap-1">
+              className="flex-1 py-1.5 rounded-lg bg-indigo-500 text-white text-xs font-medium hover:bg-indigo-600 transition-colors flex items-center justify-center gap-1">
               <CheckCircle2 size={13} /> ส่งแล้ว
             </button>
           ) : (

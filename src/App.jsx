@@ -1,7 +1,7 @@
 // [v0.1] App shell — Auth + Tab nav + pages
 // [v0.8] Search + OrderDetail + CustomerProfile (global modals)
 // [v0.9] Toast + deep link + audit tab
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, lazy, Suspense } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './lib/auth';
 import { api } from './lib/api';
@@ -13,10 +13,12 @@ import CustomerProfileModal from './components/CustomerProfileModal';
 import ToastContainer from './components/ToastContainer';
 import OfflineBanner from './components/OfflineBanner';
 import { usePullToRefresh } from './lib/usePullToRefresh';
-import Kanban from './pages/Kanban';
+// [v0.13/S1] ปฏิทินเป็นหน้าแรก → โหลด static / แท็บที่เหลือ lazy (โหลดเมื่อกดเข้า)
+//   ลด JS bundle แรกที่ต้อง parse ตอนเปิดเว็บ
 import CalendarPage from './pages/Calendar';
-import Production from './pages/Production';
-import AuditLog from './pages/AuditLog';
+const Kanban     = lazy(() => import('./pages/Kanban'));
+const Production = lazy(() => import('./pages/Production'));
+const AuditLog   = lazy(() => import('./pages/AuditLog'));
 
 const ModalCtx = createContext(null);
 export const useModals = () => useContext(ModalCtx);
@@ -147,10 +149,14 @@ function AppInner() {
         <TopBar profile={profile} onOpenSearch={() => setShowSearch(true)} />
         <TabNav value={tab} onChange={setTab} />
         <main className="max-w-7xl mx-auto p-4">
-          {tab === 'calendar'   && <CalendarPage />}
-          {tab === 'kanban'     && <Kanban />}
-          {tab === 'production' && <Production />}
-          {tab === 'audit'      && <AuditLog />}
+          {tab === 'calendar' && <CalendarPage />}
+          {tab !== 'calendar' && (
+            <Suspense fallback={<div className="text-center text-slate-400 py-12">กำลังโหลด...</div>}>
+              {tab === 'kanban'     && <Kanban />}
+              {tab === 'production' && <Production />}
+              {tab === 'audit'      && <AuditLog />}
+            </Suspense>
+          )}
         </main>
 
         {showSearch && (
