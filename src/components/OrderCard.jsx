@@ -1,6 +1,24 @@
 // [v0.9] OrderCard — inline action buttons + color code + bulk select + customer click
-import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil, Banknote } from 'lucide-react';
+import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil, Banknote, Copy } from 'lucide-react';
 import { useOrderActions } from '../lib/useOrderActions';
+import { toast } from '../lib/toast';
+import { buzz } from '../lib/haptic';
+
+// [#8] copy ข้อความเข้า clipboard + haptic + toast
+function copyText(text, label) {
+  buzz(10);
+  const done = () => toast.success('คัดลอก' + (label || '') + 'แล้ว');
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => toast.error('คัดลอกไม่สำเร็จ'));
+  } else {
+    // fallback เก่า (LIFF webview บางรุ่นไม่มี clipboard API)
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch { toast.error('คัดลอกไม่สำเร็จ'); }
+    document.body.removeChild(ta);
+  }
+}
 
 // [D2] color code ตาม status — เห็นปุ๊บรู้ปั๊บ
 function getCardStyle(order) {
@@ -101,18 +119,32 @@ export default function OrderCard({
           <div className="space-y-1 text-xs text-slate-500">
             {/* [v0.13/U2] แตะเบอร์ = โทร / แตะที่อยู่ = เปิด Google Maps */}
             {order.phone && (
-              <a data-no-card-click onClick={stop} href={'tel:' + order.phone.replace(/[^0-9+]/g,'')}
-                 className="flex items-center gap-1 text-blue-600 hover:underline w-fit">
-                <Phone size={12} /> {order.phone}
-              </a>
+              <div className="flex items-center gap-1">
+                <a data-no-card-click onClick={stop} href={'tel:' + order.phone.replace(/[^0-9+]/g,'')}
+                   className="flex items-center gap-1 text-blue-600 hover:underline w-fit">
+                  <Phone size={12} /> {order.phone}
+                </a>
+                <button data-no-card-click title="คัดลอกเบอร์"
+                  onClick={(e) => { stop(e); copyText(order.phone, 'เบอร์'); }}
+                  className="p-0.5 text-slate-400 hover:text-blue-600 shrink-0">
+                  <Copy size={12} />
+                </button>
+              </div>
             )}
             {order.location && (
-              <a data-no-card-click onClick={stop}
-                 href={order.googleMap || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(order.location))}
-                 target="_blank" rel="noopener noreferrer"
-                 className="flex items-start gap-1 hover:text-sunrise-600 hover:underline">
-                <MapPin size={12} className="mt-0.5 shrink-0" /> <span className="line-clamp-2">{order.location}</span>
-              </a>
+              <div className="flex items-start gap-1">
+                <a data-no-card-click onClick={stop}
+                   href={order.googleMap || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(order.location))}
+                   target="_blank" rel="noopener noreferrer"
+                   className="flex items-start gap-1 hover:text-sunrise-600 hover:underline min-w-0">
+                  <MapPin size={12} className="mt-0.5 shrink-0" /> <span className="line-clamp-2">{order.location}</span>
+                </a>
+                <button data-no-card-click title="คัดลอกที่อยู่"
+                  onClick={(e) => { stop(e); copyText(order.location, 'ที่อยู่'); }}
+                  className="p-0.5 text-slate-400 hover:text-sunrise-600 shrink-0">
+                  <Copy size={12} />
+                </button>
+              </div>
             )}
           </div>
         </>

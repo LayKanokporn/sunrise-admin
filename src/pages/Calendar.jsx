@@ -10,7 +10,7 @@ import OrderCard from '../components/OrderCard';
 import AddOrderModal from '../components/AddOrderModal';
 import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
 import BulkActionBar from '../components/BulkActionBar';
-import { SkeletonOrderCard, SkeletonStatCard } from '../components/Skeleton';
+import { SkeletonOrderCard, SkeletonStatCard, SkeletonBox } from '../components/Skeleton';
 import { Plus } from 'lucide-react';
 
 const dayHeaders = ['จ','อ','พ','พฤ','ศ','ส','อา'];
@@ -166,6 +166,31 @@ export default function CalendarPage() {
 
   const todayKey = fmtISO(today);
 
+  // [#5] รายรับ — วันนี้ / 7 วัน / เดือนนี้ + กราฟแท่ง 7 วันล่าสุด
+  const revenue = useMemo(() => {
+    const orders = (monthQ.data?.orders || []).filter(o => o.status !== '❌ ยกเลิก');
+    const sum = (arr) => arr.reduce((s, o) => s + (Number(o.grandTotal) || 0), 0);
+    // วันที่ของ 7 วันล่าสุด (รวมวันนี้)
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const key = fmtISO(d);
+      const dayOrders = orders.filter(o => o.deliveryDateISO === key);
+      days.push({ key, label: String(d.getDate()), total: sum(dayOrders), isToday: key === todayKey });
+    }
+    const monthOrders = orders.filter(o => {
+      const d = parseISO(o.deliveryDateISO);
+      return d.getFullYear() === year && d.getMonth() === month;
+    });
+    return {
+      today: sum(orders.filter(o => o.deliveryDateISO === todayKey)),
+      week: days.reduce((s, d) => s + d.total, 0),
+      month: sum(monthOrders),
+      days,
+      max: Math.max(1, ...days.map(d => d.total))
+    };
+  }, [monthQ.data, year, month, todayKey]);
+
   return (
     <div className="space-y-4">
       {/* [v0.4] KPI — โฟกัสที่ออเดอร์ที่ต้องทำ (ไม่เอายอดเงิน) */}
@@ -176,6 +201,40 @@ export default function CalendarPage() {
         <StatCard icon={<AlertCircle size={18}/>} label="ด่วน"      value={monthStats.urgent}  color="text-red-600 bg-red-50" />
         <StatCard icon={<DollarSign size={18}/>}  label="ค้างชำระ"  value={monthStats.pending} color="text-amber-600 bg-amber-50" />
       </div>
+
+      {/* [#5] รายรับ widget — วันนี้ / 7 วัน / เดือนนี้ + กราฟแท่ง 7 วัน */}
+      {monthQ.isLoading ? (
+        <SkeletonBox className="h-28 w-full" />
+      ) : (
+        <div className="card !p-3 sm:!p-4">
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div>
+              <div className="text-[10px] sm:text-xs text-slate-500">รายรับวันนี้</div>
+              <div className="text-base sm:text-xl font-bold text-green-600">฿{revenue.today.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-[10px] sm:text-xs text-slate-500">7 วันล่าสุด</div>
+              <div className="text-base sm:text-xl font-bold text-blue-600">฿{revenue.week.toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-[10px] sm:text-xs text-slate-500">เดือนนี้</div>
+              <div className="text-base sm:text-xl font-bold text-sunrise-600">฿{revenue.month.toLocaleString()}</div>
+            </div>
+          </div>
+          {/* กราฟแท่ง 7 วัน */}
+          <div className="flex items-end justify-between gap-1 h-16">
+            {revenue.days.map((d) => (
+              <div key={d.key} className="flex-1 flex flex-col items-center justify-end h-full gap-1" title={`${d.label}: ฿${d.total.toLocaleString()}`}>
+                <div
+                  className={'w-full rounded-t transition-all ' + (d.isToday ? 'bg-sunrise-500' : 'bg-blue-200')}
+                  style={{ height: `${Math.max(4, (d.total / revenue.max) * 100)}%` }}
+                />
+                <div className={'text-[9px] ' + (d.isToday ? 'text-sunrise-600 font-bold' : 'text-slate-400')}>{d.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Month nav ── [v0.12/M4] sticky — เปลี่ยนเดือนได้ตลอดเวลา scroll */}
       <div className="card flex items-center justify-between sticky top-[57px] sm:top-[106px] z-20 shadow-sm">
