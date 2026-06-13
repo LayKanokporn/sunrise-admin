@@ -79,6 +79,25 @@ export default function Timeline() {
         <div className="space-y-2">{[1,2,3,4,5].map((i) => <SkeletonBox key={i} className="h-12 w-full" />)}</div>
       ) : (
         <div className="card !p-0 overflow-hidden">
+          {/* ไม่ระบุเวลา — ไว้บนสุดให้เห็นง่าย (ต้องเช็ค/เติมเวลา) */}
+          {noTime.length > 0 && (
+            <div className="flex border-b-2 border-amber-300 bg-amber-50/60">
+              <div className="w-14 sm:w-16 shrink-0 px-2 py-3 text-right border-r border-slate-100 text-xs text-amber-600 font-bold">
+                ไม่ระบุ<br/>เวลา
+              </div>
+              <div className="flex-1 p-2 flex flex-wrap gap-1.5">
+                {noTime.map((o) => (
+                  <button key={o.orderId} onClick={() => modals.openOrder(o)}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-white border-amber-200 text-slate-700 hover:shadow-sm">
+                    {o.isUrgent && <AlertTriangle size={11} className="text-red-500" />}
+                    <span className="truncate max-w-[120px]">{o.customerName || '-'}</span>
+                    <span className="text-sunrise-600">฿{(o.grandTotal||0).toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {HOURS.map((h) => {
             const list = byHour[h];
             const isPeak = h === peakHour && maxCount > 0;
@@ -108,24 +127,6 @@ export default function Timeline() {
               </div>
             );
           })}
-
-          {/* ไม่ระบุเวลา */}
-          {noTime.length > 0 && (
-            <div className="flex border-t-2 border-slate-200 bg-amber-50/40">
-              <div className="w-14 sm:w-16 shrink-0 px-2 py-3 text-right border-r border-slate-100 text-xs text-amber-600 font-medium">
-                ไม่ระบุ
-              </div>
-              <div className="flex-1 p-2 flex flex-wrap gap-1.5">
-                {noTime.map((o) => (
-                  <button key={o.orderId} onClick={() => modals.openOrder(o)}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border bg-white border-amber-200 text-slate-700 hover:shadow-sm">
-                    <span className="truncate max-w-[120px]">{o.customerName || '-'}</span>
-                    <span className="text-sunrise-600">฿{(o.grandTotal||0).toLocaleString()}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {orders.length === 0 && (
             <div className="text-center text-slate-400 py-12 text-sm">— ไม่มีออเดอร์วันนี้ —</div>
