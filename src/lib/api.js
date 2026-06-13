@@ -51,7 +51,8 @@ export const api = USE_MOCK ? mock : {
   // write
   update:     (orderId, fields) => call('update', { uid:_currentUid, orderId, ...fields }),
   urgent:     (orderId, on)     => call('urgent', { uid:_currentUid, orderId, on: on?1:0 }),
-  paid:       (orderId, slip)   => call('paid',   { uid:_currentUid, orderId, slip:slip||'' }),
+  paid:       (orderId, slip)   => call('paid',   { uid:_currentUid, orderId, slip:slip||'', on:1 }),
+  unpaid:     (orderId)         => call('paid',   { uid:_currentUid, orderId, on:0 }),
   cancel:     (orderId)         => call('cancel', { uid:_currentUid, orderId }),
   status:     (orderId, value)  => call('status', { uid:_currentUid, orderId, value }),
   note:       (orderId, value)  => call('note',   { uid:_currentUid, orderId, value }),

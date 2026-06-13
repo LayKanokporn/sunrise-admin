@@ -18,11 +18,13 @@ const columns = [
   { key: 'done',      title: '🎉 ส่งแล้ว',  color: 'bg-green-50',  match: (o) => /completed|ส่งแล้ว|delivered/.test(o.status) || o.isPassed }
 ];
 
-function todayISO() {
+function isoOffset(days) {
   // [v0.7] local date components
   const d = new Date();
+  d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+const todayISO = () => isoOffset(0);
 
 export default function Kanban() {
   const [date, setDate] = useState(todayISO());
@@ -65,7 +67,18 @@ export default function Kanban() {
           onChange={(e) => setDate(e.target.value)}
           className="px-3 py-2 rounded-lg border border-slate-300 text-sm"
         />
-        <button onClick={() => setDate(todayISO())} className="btn btn-ghost text-sm">วันนี้</button>
+        {/* [v0.13/U3] ปุ่มลัดวัน */}
+        <div className="flex gap-1">
+          {[['เมื่อวาน',-1],['วันนี้',0],['พรุ่งนี้',1]].map(([label,off]) => {
+            const iso = isoOffset(off);
+            return (
+              <button key={label} onClick={() => setDate(iso)}
+                className={'btn text-sm ' + (date === iso ? 'btn-primary' : 'btn-ghost border border-slate-200')}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
         <div className="text-sm text-slate-500">
           {isLoading ? '⏳' : `${orders.length} ออเดอร์` + (filters.size ? ` (filter ${filters.size})` : '')}
         </div>

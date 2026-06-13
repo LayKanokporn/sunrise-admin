@@ -6,14 +6,18 @@ import App from './App.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './index.css';
 
-// [v0.7] cache aggressive — Apps Script ช้า + ใช้ response cache 60s server-side
-//   staleTime 60s = ข้อมูลถือว่าสด 1 นาที (ไม่ refetch ทันทีตอน mount component อื่น)
-//   refetchInterval 60s = poll ทุก 1 นาที (ลดจาก 30s — ประหยัด quota)
+// [v0.13/P2+P3] กันหน่วงบนมือถือ:
+//   - ปิด refetchInterval global — เดิมทุก query (calendar/kanban/production) poll พร้อมกันทุก 60s
+//     เบื้องหลังตลอด ทำให้มือถือ LINE หน่วง + เปลือง quota
+//     → ให้ poll เฉพาะ newcount (เบา) ใน TopBar พอ
+//   - ปิด refetchOnWindowFocus — เดิมเปิด LINE ใหม่/สลับแอป = refetch ทุก query พร้อมกัน spike
+//     → มี pull-to-refresh + ปุ่ม refresh + newcount poll แทนแล้ว
+//   staleTime/gcTime คงไว้ — สลับ tab กลับมาใช้ cache ทันที
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchInterval: 60_000,
-      refetchOnWindowFocus: true,
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
       staleTime: 60_000,           // ← ใช้ cached ทันทีถ้าน้อยกว่า 60s
       gcTime: 5 * 60_000,          // ← เก็บ cache ใน memory 5 นาที (เปลี่ยน tab กลับมาเร็ว)
       retry: 1

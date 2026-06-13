@@ -99,8 +99,21 @@ export default function OrderCard({
             {moreItems > 0 && <div className="text-xs text-slate-400">+ อีก {moreItems} รายการ</div>}
           </div>
           <div className="space-y-1 text-xs text-slate-500">
-            {order.phone     && <div className="flex items-center gap-1"><Phone size={12} /> {order.phone}</div>}
-            {order.location  && <div className="flex items-start gap-1"><MapPin size={12} className="mt-0.5" /> <span className="line-clamp-2">{order.location}</span></div>}
+            {/* [v0.13/U2] แตะเบอร์ = โทร / แตะที่อยู่ = เปิด Google Maps */}
+            {order.phone && (
+              <a data-no-card-click onClick={stop} href={'tel:' + order.phone.replace(/[^0-9+]/g,'')}
+                 className="flex items-center gap-1 text-blue-600 hover:underline w-fit">
+                <Phone size={12} /> {order.phone}
+              </a>
+            )}
+            {order.location && (
+              <a data-no-card-click onClick={stop}
+                 href={order.googleMap || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(order.location))}
+                 target="_blank" rel="noopener noreferrer"
+                 className="flex items-start gap-1 hover:text-sunrise-600 hover:underline">
+                <MapPin size={12} className="mt-0.5 shrink-0" /> <span className="line-clamp-2">{order.location}</span>
+              </a>
+            )}
           </div>
         </>
       )}

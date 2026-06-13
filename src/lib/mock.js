@@ -124,6 +124,11 @@ export const mock = {
     if (o) o.paymentStatus = 'Paid';
     return Promise.resolve({ ok:true });
   },
+  unpaid: (orderId) => {
+    const o = ALL.find(x => x.orderId === orderId);
+    if (o) o.paymentStatus = 'Pending';
+    return Promise.resolve({ ok:true });
+  },
   cancel: (orderId) => {
     const i = ALL.findIndex(x => x.orderId === orderId);
     if (i >= 0) ALL.splice(i, 1);

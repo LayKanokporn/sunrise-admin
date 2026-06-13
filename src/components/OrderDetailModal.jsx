@@ -52,6 +52,10 @@ export default function OrderDetailModal({ order, onClose }) {
   const toggleUrgent = () => run(order.isUrgent ? 'ปลดด่วน' : 'ตั้งด่วน',
     () => api.urgent(order.orderId, !order.isUrgent));
   const markPaid = () => run('mark ชำระแล้ว', () => api.paid(order.orderId));
+  const unmarkPaid = () => {
+    if (!confirm('ยกเลิกสถานะชำระของ ' + order.orderId + ' ใช่ไหม? (กลับเป็นค้างชำระ)')) return;
+    run('ยกเลิกชำระ', () => api.unpaid(order.orderId));
+  };
   const changeStatus = (v) => run('เปลี่ยนสถานะ', () => api.status(order.orderId, v));
   const cancelOrder = () => {
     if (!confirm('ยกเลิกออเดอร์ ' + order.orderId + ' ใช่ไหม?')) return;
@@ -169,12 +173,23 @@ export default function OrderDetailModal({ order, onClose }) {
                   {order.isUrgent ? 'ปลด urgent' : 'ตั้งเป็นด่วน'}
                 </button>
 
-                <button onClick={markPaid} disabled={busy || isPaid}
-                  className={'btn w-full flex items-center justify-center gap-2 ' +
-                    (isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-500 text-white')}>
-                  <CheckCircle2 size={16} />
-                  {isPaid ? 'ชำระแล้ว ✓' : 'mark ชำระแล้ว'}
-                </button>
+                {/* [v0.13] กดผิดย้อนได้ — ชำระแล้ว → กดเพื่อยกเลิกชำระ */}
+                {isPaid ? (
+                  <div className="flex gap-2">
+                    <div className="flex-1 btn bg-emerald-100 text-emerald-700 flex items-center justify-center gap-2 pointer-events-none">
+                      <CheckCircle2 size={16} /> ชำระแล้ว ✓
+                    </div>
+                    <button onClick={unmarkPaid} disabled={busy}
+                      className="btn bg-amber-50 text-amber-700 border border-amber-200 px-3 text-sm whitespace-nowrap">
+                      ยกเลิกชำระ
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={markPaid} disabled={busy}
+                    className="btn w-full bg-emerald-500 text-white flex items-center justify-center gap-2">
+                    <CheckCircle2 size={16} /> mark ชำระแล้ว
+                  </button>
+                )}
 
                 <button onClick={cancelOrder} disabled={busy}
                   className="btn w-full bg-red-50 text-red-700 border border-red-200 flex items-center justify-center gap-2">

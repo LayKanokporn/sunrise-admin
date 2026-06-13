@@ -109,10 +109,15 @@ export default function CalendarPage() {
     queryFn: () => api.orders({ from: fmtISO(first), to: fmtISO(last) })
   });
 
-  const dayQ = useQuery({
-    queryKey: ['orders', picked],
-    queryFn: () => api.orders({ date: picked })
-  });
+  // [v0.13/P1] วันที่เลือกดึงจาก monthQ ตรง ๆ (ออเดอร์อยู่ในกริดอยู่แล้ว ไม่ต้องยิง network ซ้ำ)
+  //   → กดวันแล้ว bottom sheet เด้งทันที ไม่รอโหลด
+  const dayQ = useMemo(() => {
+    const orders = (monthQ.data?.orders || []).filter((o) => o.deliveryDateISO === picked);
+    return {
+      data: monthQ.data ? { count: orders.length, orders } : undefined,
+      isLoading: monthQ.isLoading
+    };
+  }, [monthQ.data, monthQ.isLoading, picked]);
 
   // [v0.4] group by ISO date — โฟกัสที่ร้านไหน วันไหน (ไม่เอายอดเงิน mini-bar)
   const byDate = useMemo(() => {

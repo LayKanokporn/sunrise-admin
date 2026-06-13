@@ -1,6 +1,6 @@
 // [v0.8] TopBar — refresh + search + notification badge
 import { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { RefreshCw, Search, Bell } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -8,6 +8,7 @@ const LAST_SEEN_KEY = 'sunrise.lastSeenTimestamp';
 
 export default function TopBar({ profile, onOpenSearch }) {
   const qc = useQueryClient();
+  const isFetching = useIsFetching();   // [v0.13/U1] >0 = มี query กำลังโหลด
   const [lastSeen, setLastSeen] = useState(
     () => localStorage.getItem(LAST_SEEN_KEY) || new Date(Date.now() - 24*3600*1000).toISOString()
   );
@@ -52,8 +53,8 @@ export default function TopBar({ profile, onOpenSearch }) {
               </span>
             )}
           </button>
-          <button onClick={refetchAll} className="btn btn-ghost p-2" aria-label="refresh">
-            <RefreshCw size={18} />
+          <button onClick={refetchAll} className="btn btn-ghost p-2" aria-label="refresh" title="รีเฟรชข้อมูล">
+            <RefreshCw size={18} className={isFetching ? 'animate-spin text-sunrise-500' : ''} />
           </button>
           {profile?.pictureUrl && (
             <img src={profile.pictureUrl} alt="" className="w-8 h-8 rounded-full ml-1" />
