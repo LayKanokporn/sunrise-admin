@@ -11,6 +11,35 @@ function badgeForBy(by) {
   return 'bg-slate-100 text-slate-600';
 }
 
+// [v0.13] แปลง timestamp เป็นวันเวลาไทย — รองรับ 2 format ที่ GAS ส่งมา:
+//   1) ISO UTC "2569-06-13T04:02:08.000Z" (ปี พ.ศ. + Z) → แปลง UTC เป็นเวลาไทย (+7)
+//   2) Thai "13/06/2569 11:02:08" (เวลาไทยอยู่แล้ว) → จัดรูปใหม่
+const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function formatThaiDateTime(raw) {
+  if (!raw) return '-';
+  const s = String(raw);
+  // ── ISO ──
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(\.\d+)?(Z)?/);
+  if (m) {
+    let y = +m[1]; if (y > 2500) y -= 543;            // พ.ศ. → ค.ศ.
+    const mo = +m[2], d = +m[3], hh = +m[4], mi = +m[5], se = +(m[6] || 0);
+    if (m[8]) { // มี Z = UTC → แปลงเป็นเวลาไทยด้วย timeZone
+      const date = new Date(Date.UTC(y, mo - 1, d, hh, mi, se));
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Bangkok', day: 'numeric', month: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      }).formatToParts(date);
+      const g = (t) => parts.find((x) => x.type === t)?.value;
+      return `${+g('day')} ${TH_MONTHS[+g('month') - 1]} ${g('hour')}:${g('minute')}`;
+    }
+    return `${d} ${TH_MONTHS[mo - 1]} ${String(hh).padStart(2,'0')}:${m[5]}`;
+  }
+  // ── Thai DD/MM/YYYY HH:MM(:SS) ──
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (m) return `${+m[1]} ${TH_MONTHS[+m[2] - 1]} ${m[4].padStart(2,'0')}:${m[5]}`;
+  return s;
+}
+
 function statusBadge(e) {
   if (e.isCancelled) return { t: '❌ ยกเลิก', c: 'bg-slate-200 text-slate-600' };
   const st = (e.status || '').toLowerCase();
@@ -59,7 +88,7 @@ export default function AuditLog() {
                 <div className="text-xs text-slate-400 truncate">{e.orderId} · ฿{e.grandTotal.toLocaleString()}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-xs text-slate-500">{e.updatedAt.split(' ')[1] || e.updatedAt}</div>
+                <div className="text-xs text-slate-500">{formatThaiDateTime(e.updatedAt)}</div>
                 <div className={'badge text-[10px] mt-0.5 ' + badgeForBy(e.updatedBy)}>{e.updatedBy}</div>
               </div>
             </button>
