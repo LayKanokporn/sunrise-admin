@@ -10,6 +10,7 @@ import OrderCard from '../components/OrderCard';
 import AddOrderModal from '../components/AddOrderModal';
 import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
 import { usePrefs, sortPinned } from '../lib/prefs';
+import { useAuth } from '../lib/auth';
 import BulkActionBar from '../components/BulkActionBar';
 import { SkeletonOrderCard, SkeletonStatCard, SkeletonBox } from '../components/Skeleton';
 import { Plus } from 'lucide-react';
@@ -197,6 +198,10 @@ export default function CalendarPage() {
 
   const todayKey = fmtISO(today);
   usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด → จัดเรียงใหม่ทันที
+  // [#owner] รายรับ — เห็นเฉพาะเจ้าของ (ตั้ง VITE_OWNER_UID ใน Vercel); ถ้าไม่ตั้ง = เห็นทุกคนเหมือนเดิม
+  const { profile } = useAuth();
+  const ownerUid = import.meta.env.VITE_OWNER_UID;
+  const isOwner = !ownerUid || profile?.userId === ownerUid;
 
   // [#5] รายรับ — วันนี้ / 7 วัน / เดือนนี้ + กราฟแท่ง 7 วันล่าสุด
   const revenue = useMemo(() => {
@@ -234,8 +239,8 @@ export default function CalendarPage() {
         <StatCard icon={<DollarSign size={18}/>}  label="ค้างชำระ"  value={monthStats.pending} color="text-amber-600 bg-amber-50" />
       </div>
 
-      {/* [#5] รายรับ widget — วันนี้ / 7 วัน / เดือนนี้ + กราฟแท่ง 7 วัน */}
-      {monthQ.isLoading ? (
+      {/* [#5] รายรับ widget — [#owner] เห็นเฉพาะเจ้าของ */}
+      {isOwner && (monthQ.isLoading ? (
         <SkeletonBox className="h-28 w-full" />
       ) : (
         <div className="card !p-3 sm:!p-4">
@@ -266,7 +271,7 @@ export default function CalendarPage() {
             ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* ── Month nav ── [v0.12/M4] sticky — เปลี่ยนเดือนได้ตลอดเวลา scroll */}
       <div className="card flex items-center justify-between sticky top-[57px] sm:top-[106px] z-20 shadow-sm">
