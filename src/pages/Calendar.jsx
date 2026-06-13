@@ -70,12 +70,18 @@ export default function CalendarPage() {
   const [picked, setPicked] = useState(fmtISO(today));
   // [v0.5] modal state
   const [showAdd, setShowAdd] = useState(false);
+  // [v0.12/M3] มือถือ: day detail เป็น bottom sheet
+  const [sheetOpen, setSheetOpen] = useState(false);
   const modals = useModals();
-  // [v0.6] auto-scroll ลง detail เมื่อเลือกวัน
+  // [v0.6] auto-scroll ลง detail เมื่อเลือกวัน (เฉพาะจอใหญ่)
   const detailRef = useRef(null);
   function pickDate(iso) {
     setPicked(iso);
-    setTimeout(() => detailRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+    if (window.matchMedia('(max-width: 639px)').matches) {
+      setSheetOpen(true);
+    } else {
+      setTimeout(() => detailRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+    }
   }
   // [v0.8] filter + bulk state
   const [filters, setFilters] = useState(() => new Set());
@@ -143,15 +149,16 @@ export default function CalendarPage() {
   return (
     <div className="space-y-4">
       {/* [v0.4] KPI — โฟกัสที่ออเดอร์ที่ต้องทำ (ไม่เอายอดเงิน) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard icon={<Package size={18}/>}     label="ออเดอร์เดือนนี้" value={monthStats.count}   color="text-sunrise-600 bg-sunrise-50" />
-        <StatCard icon={<TrendingUp size={18}/>}  label="ร้าน"            value={monthStats.shops}   color="text-blue-600 bg-blue-50" />
-        <StatCard icon={<AlertCircle size={18}/>} label="ด่วน"            value={monthStats.urgent}  color="text-red-600 bg-red-50" />
-        <StatCard icon={<DollarSign size={18}/>}  label="ค้างชำระ"       value={monthStats.pending} color="text-amber-600 bg-amber-50" />
+      {/* [v0.12/M1] มือถือ: 4 ใบแถวเดียวแบบ compact — เห็นปฏิทินทันทีไม่ต้อง scroll */}
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <StatCard icon={<Package size={18}/>}     label="ออเดอร์"   value={monthStats.count}   color="text-sunrise-600 bg-sunrise-50" />
+        <StatCard icon={<TrendingUp size={18}/>}  label="ร้าน"      value={monthStats.shops}   color="text-blue-600 bg-blue-50" />
+        <StatCard icon={<AlertCircle size={18}/>} label="ด่วน"      value={monthStats.urgent}  color="text-red-600 bg-red-50" />
+        <StatCard icon={<DollarSign size={18}/>}  label="ค้างชำระ"  value={monthStats.pending} color="text-amber-600 bg-amber-50" />
       </div>
 
-      {/* ── Month nav ── */}
-      <div className="card flex items-center justify-between">
+      {/* ── Month nav ── [v0.12/M4] sticky — เปลี่ยนเดือนได้ตลอดเวลา scroll */}
+      <div className="card flex items-center justify-between sticky top-[57px] sm:top-[106px] z-20 shadow-sm">
         <button onClick={() => setAnchor(addMonths(anchor, -1))} className="btn btn-ghost p-2"><ChevronLeft size={20} /></button>
         <div className="text-center">
           <div className="font-bold text-lg">{monthNamesTH[month]} {year + 543}</div>
@@ -178,7 +185,8 @@ export default function CalendarPage() {
               key={i}
               onClick={() => pickDate(cell.isoKey)}
               className={
-                'rounded-lg p-1.5 sm:p-2 text-left min-h-[75px] sm:min-h-[110px] transition-all border ' +
+                // [v0.12/M2] มือถือ: ช่องเตี้ย (52px) เลขวัน + จำนวน + dot — ชื่อร้านดูใน detail
+                'rounded-lg p-1 sm:p-2 text-left min-h-[52px] sm:min-h-[110px] transition-all border ' +
                 (!cell.inMonth ? 'opacity-40 ' : '') +
                 (isToday ? 'bg-sunrise-50 ' : 'bg-white ') +
                 (isPicked ? 'ring-2 ring-sunrise-500 border-sunrise-500 ' : 'border-slate-200 hover:border-slate-300 ') +
@@ -188,16 +196,22 @@ export default function CalendarPage() {
                 <span className={'text-xs sm:text-sm font-semibold ' + (isToday ? 'text-sunrise-600' : 'text-slate-700')}>
                   {cell.date.getDate()}
                 </span>
-                {hasUrgent && <span className="text-xs">🚨</span>}
+                {hasUrgent && <span className="text-[10px] sm:text-xs">🚨</span>}
               </div>
               {info && (
-                <div className="mt-1 space-y-0.5">
-                  {/* [v0.4] focus: จำนวนออเดอร์ + ชื่อร้าน */}
-                  <div className="text-[10px] sm:text-xs font-bold text-sunrise-600">
+                <div className="mt-0.5 sm:mt-1 space-y-0.5">
+                  {/* มือถือ: badge จำนวน / จอใหญ่: ข้อความเต็ม */}
+                  <div className="sm:hidden flex justify-center">
+                    <span className={'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] font-bold ' +
+                      (hasUrgent ? 'bg-red-100 text-red-600' : 'bg-sunrise-100 text-sunrise-700')}>
+                      {info.count}
+                    </span>
+                  </div>
+                  <div className="hidden sm:block text-xs font-bold text-sunrise-600">
                     {info.count} ออเดอร์
                   </div>
-                  {/* show 1-2 ชื่อร้าน truncate */}
-                  <div className="text-[9px] sm:text-[10px] text-slate-600 space-y-0.5">
+                  {/* ชื่อร้าน — จอใหญ่เท่านั้น */}
+                  <div className="hidden sm:block text-[10px] text-slate-600 space-y-0.5">
                     {info.shops.slice(0, 2).map((s, i) => (
                       <div key={i} className="truncate leading-tight">• {s}</div>
                     ))}
@@ -214,11 +228,59 @@ export default function CalendarPage() {
 
       {/* [v0.4] Legend สั้นๆ */}
       <div className="flex items-center gap-3 text-[10px] sm:text-xs text-slate-500 flex-wrap px-1">
-        <div>🚨 = มีด่วน • เลขส้ม = จำนวน • ชื่อร้านใต้เลข • กดช่อง = ดูรายละเอียด</div>
+        <div className="sm:hidden">🚨 = มีด่วน • เลขในวงกลม = จำนวนออเดอร์ • กดวัน = ดูรายละเอียด</div>
+        <div className="hidden sm:block">🚨 = มีด่วน • เลขส้ม = จำนวน • ชื่อร้านใต้เลข • กดช่อง = ดูรายละเอียด</div>
       </div>
 
-      {/* ── Day detail ── */}
-      <div ref={detailRef} className="card scroll-mt-32">
+      {/* [v0.12/M3] มือถือ: day detail เป็น bottom sheet */}
+      {sheetOpen && (
+        <div className="sm:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSheetOpen(false)} />
+          <div className="absolute inset-x-0 bottom-0 bg-white rounded-t-2xl max-h-[80vh] flex flex-col">
+            {/* handle + ปุ่มปิด */}
+            <div className="flex-none pt-2 pb-1 flex flex-col items-center" onClick={() => setSheetOpen(false)}>
+              <div className="w-10 h-1 rounded-full bg-slate-300" />
+            </div>
+            <div className="flex-none px-4 pb-2 flex items-center justify-between">
+              <div>
+                <div className="font-bold">
+                  {parseISO(picked).toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long' })}
+                </div>
+                {dayQ.data && (
+                  <div className="text-sm text-slate-500">
+                    {dayQ.data.count} ออเดอร์
+                    {dayQ.data.orders.length > 0 && ' • ฿' + dayQ.data.orders.reduce((s,o)=>s+o.grandTotal,0).toLocaleString()}
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setSheetOpen(false)} className="btn btn-ghost text-sm">ปิด ✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-3">
+              <FilterChips chips={ORDER_FILTERS} active={filters} onToggle={toggleFilter} />
+              {dayQ.isLoading && [1,2].map(i => <SkeletonOrderCard key={i} />)}
+              {dayQ.data?.orders.length === 0 && (
+                <div className="text-center text-slate-400 py-8">— ไม่มีออเดอร์วันนี้ —</div>
+              )}
+              {applyOrderFilters(dayQ.data?.orders || [], filters).map((o) => (
+                <OrderCard
+                  key={o.orderId}
+                  order={o}
+                  onClick={() => modals.openOrder(o)}
+                  selected={selectedIds.has(o.orderId)}
+                  onToggleSelect={toggleSelect}
+                  onCustomerClick={modals.openCustomer}
+                />
+              ))}
+              {dayQ.data?.orders?.length > 0 && applyOrderFilters(dayQ.data.orders, filters).length === 0 && (
+                <div className="text-center text-slate-400 py-8 text-sm">— filter ทำให้ไม่เหลือออเดอร์ —</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Day detail (จอใหญ่: inline เหมือนเดิม) ── */}
+      <div ref={detailRef} className="hidden sm:block card scroll-mt-32">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
             <div className="font-bold">
@@ -265,10 +327,10 @@ export default function CalendarPage() {
         )}
       </div>
 
-      {/* [v0.5] Floating Add button */}
+      {/* [v0.5] Floating Add button — [M5] มือถือยกขึ้นพ้น bottom nav */}
       <button
         onClick={() => setShowAdd(true)}
-        className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-sunrise-500 text-white shadow-lg hover:bg-sunrise-600 flex items-center justify-center transition-transform hover:scale-110"
+        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-30 w-14 h-14 rounded-full bg-sunrise-500 text-white shadow-lg hover:bg-sunrise-600 flex items-center justify-center transition-transform hover:scale-110"
         aria-label="เพิ่มออเดอร์">
         <Plus size={28} />
       </button>
@@ -282,13 +344,14 @@ export default function CalendarPage() {
   );
 }
 
+// [v0.12/M1] มือถือ: แนวตั้ง compact (เลข + label เล็ก, ไม่มี icon) / จอใหญ่: เหมือนเดิม
 function StatCard({ icon, label, value, color }) {
   return (
-    <div className="card flex items-center gap-3">
-      <div className={'p-2 rounded-lg ' + color}>{icon}</div>
+    <div className="card !p-2 sm:!p-4 flex flex-col sm:flex-row items-center sm:gap-3 text-center sm:text-left">
+      <div className={'hidden sm:block p-2 rounded-lg ' + color}>{icon}</div>
       <div className="min-w-0">
-        <div className="text-xs text-slate-500 truncate">{label}</div>
-        <div className="font-bold text-lg leading-tight truncate">{value}</div>
+        <div className="font-bold text-base sm:text-lg leading-tight truncate">{value}</div>
+        <div className="text-[10px] sm:text-xs text-slate-500 truncate">{label}</div>
       </div>
     </div>
   );
