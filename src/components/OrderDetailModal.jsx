@@ -2,7 +2,7 @@
 // [v0.8] เพิ่ม typeahead autocomplete สำหรับเพิ่มเมนู
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, AlertTriangle, CheckCircle2, Trash2, Plus, MapPin, Phone, Clock, Save } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle2, Trash2, Plus, MapPin, Phone, Clock, Save, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
 
 const statusOptions = [
@@ -57,6 +57,10 @@ export default function OrderDetailModal({ order, onClose }) {
     run('ยกเลิกชำระ', () => api.unpaid(order.orderId));
   };
   const changeStatus = (v) => run('เปลี่ยนสถานะ', () => api.status(order.orderId, v));
+  const announce = () => {
+    if (!confirm('ประกาศออเดอร์นี้เข้ากลุ่ม LINE?\n(' + (order.customerName||'-') + ' ส่ง ' + (order.deliveryDate||'-') + ')')) return;
+    run('ประกาศเข้ากลุ่ม', () => api.announce(order.orderId));
+  };
   const cancelOrder = () => {
     if (!confirm('ยกเลิกออเดอร์ ' + order.orderId + ' ใช่ไหม?')) return;
     run('ยกเลิก', () => api.cancel(order.orderId)).then(() => onClose());
@@ -190,6 +194,12 @@ export default function OrderDetailModal({ order, onClose }) {
                     <CheckCircle2 size={16} /> mark ชำระแล้ว
                   </button>
                 )}
+
+                {/* [v0.13] ประกาศออเดอร์นี้เข้ากลุ่ม LINE */}
+                <button onClick={announce} disabled={busy}
+                  className="btn w-full bg-sky-500 text-white flex items-center justify-center gap-2">
+                  <Megaphone size={16} /> ประกาศเข้ากลุ่ม LINE
+                </button>
 
                 <button onClick={cancelOrder} disabled={busy}
                   className="btn w-full bg-red-50 text-red-700 border border-red-200 flex items-center justify-center gap-2">

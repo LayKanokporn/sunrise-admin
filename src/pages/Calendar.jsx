@@ -2,8 +2,9 @@
 // [v0.8] เพิ่ม filter chips + bulk select + customer profile
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, TrendingUp, Package, DollarSign, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, TrendingUp, Package, DollarSign, AlertCircle, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
+import { toast } from '../lib/toast';
 import { useModals } from '../App';
 import OrderCard from '../components/OrderCard';
 import AddOrderModal from '../components/AddOrderModal';
@@ -82,6 +83,19 @@ export default function CalendarPage() {
     } else {
       setTimeout(() => detailRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
     }
+  }
+  // [v0.13] ประกาศรายการของวันที่เลือกเข้ากลุ่ม LINE
+  const [announcing, setAnnouncing] = useState(false);
+  async function announceDay() {
+    if (!confirm('ประกาศรายการส่งของวันนี้เข้ากลุ่ม LINE?')) return;
+    setAnnouncing(true);
+    try {
+      const r = await api.announceDay(picked);
+      if (r.ok === false) throw new Error(r.error || 'failed');
+      toast.success('ประกาศเข้ากลุ่มแล้ว' + (r.count ? ' (' + r.count + ' ออเดอร์)' : ''));
+    } catch(e) {
+      toast.error('ประกาศไม่สำเร็จ: ' + e.message);
+    } finally { setAnnouncing(false); }
   }
   // [v0.8] filter + bulk state
   const [filters, setFilters] = useState(() => new Set());
@@ -258,7 +272,13 @@ export default function CalendarPage() {
                   </div>
                 )}
               </div>
-              <button onClick={() => setSheetOpen(false)} className="btn btn-ghost text-sm">ปิด ✕</button>
+              <div className="flex items-center gap-1">
+                <button onClick={announceDay} disabled={announcing || !dayQ.data?.orders?.length}
+                  className="btn bg-sky-500 text-white text-sm px-2 flex items-center gap-1 disabled:opacity-40">
+                  <Megaphone size={14} /> ประกาศ
+                </button>
+                <button onClick={() => setSheetOpen(false)} className="btn btn-ghost text-sm">ปิด ✕</button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-3">
               <FilterChips chips={ORDER_FILTERS} active={filters} onToggle={toggleFilter} />
@@ -298,7 +318,13 @@ export default function CalendarPage() {
               </div>
             )}
           </div>
-          <button onClick={() => setPicked(todayKey)} className="btn btn-ghost text-sm">↻ วันนี้</button>
+          <div className="flex items-center gap-1">
+            <button onClick={announceDay} disabled={announcing || !dayQ.data?.orders?.length}
+              className="btn bg-sky-500 text-white text-sm px-3 flex items-center gap-1 disabled:opacity-40">
+              <Megaphone size={14} /> ประกาศเข้ากลุ่ม
+            </button>
+            <button onClick={() => setPicked(todayKey)} className="btn btn-ghost text-sm">↻ วันนี้</button>
+          </div>
         </div>
 
         {/* [v0.8] filter chips */}

@@ -129,6 +129,8 @@ export const mock = {
     if (o) o.paymentStatus = 'Pending';
     return Promise.resolve({ ok:true });
   },
+  announce: (orderId) => Promise.resolve({ ok:true, mode:'single', groups:1 }),
+  announceDay: (date) => Promise.resolve({ ok:true, mode:'today', count:3, groups:1 }),
   cancel: (orderId) => {
     const i = ALL.findIndex(x => x.orderId === orderId);
     if (i >= 0) ALL.splice(i, 1);

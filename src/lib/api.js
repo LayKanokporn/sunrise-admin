@@ -54,6 +54,9 @@ export const api = USE_MOCK ? mock : {
   paid:       (orderId, slip)   => call('paid',   { uid:_currentUid, orderId, slip:slip||'', on:1 }),
   unpaid:     (orderId)         => call('paid',   { uid:_currentUid, orderId, on:0 }),
   cancel:     (orderId)         => call('cancel', { uid:_currentUid, orderId }),
+  // [v0.13] ประกาศเข้ากลุ่ม LINE — 1 ออเดอร์ / รายการทั้งวัน
+  announce:      (orderId) => call('announce', { uid:_currentUid, orderId }),
+  announceDay:   (date)    => call('announce', { uid:_currentUid, scope:'today', date: date||'' }),
   status:     (orderId, value)  => call('status', { uid:_currentUid, orderId, value }),
   note:       (orderId, value)  => call('note',   { uid:_currentUid, orderId, value }),
   addItem:    (orderId, item)   => call('addItem', { uid:_currentUid, orderId, ...item }),
