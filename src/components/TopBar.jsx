@@ -23,7 +23,7 @@ export default function TopBar({ profile, onOpenSearch }) {
 
   const newCount = newData?.count || 0;
 
-  const refetchAll = () => qc.invalidateQueries();
+  const refetchAll = () => { if (navigator.vibrate) navigator.vibrate(8); qc.invalidateQueries(); };
   const markAllSeen = () => {
     const now = new Date().toISOString();
     localStorage.setItem(LAST_SEEN_KEY, now);

@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { SkeletonBox } from '../components/Skeleton';
 
 // [v0.7] FIX timezone — use local date components instead of UTC
 function fmtISO(d) {
@@ -55,7 +56,25 @@ export default function Production() {
       {/* totals — bar chart */}
       <div className="card">
         <div className="font-bold mb-3">🍰 รวมต้องผลิต</div>
-        {totals.length === 0 && <div className="text-sm text-slate-400">— ไม่มีรายการ —</div>}
+        {isLoading && (
+          <div className="space-y-2">
+            {[1,2,3,4].map(i => (
+              <div key={i}>
+                <div className="flex justify-between mb-1">
+                  <SkeletonBox className="h-3 w-32" />
+                  <SkeletonBox className="h-3 w-12" />
+                </div>
+                <SkeletonBox className="h-2 w-full" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!isLoading && totals.length === 0 && (
+          <div className="text-center py-6 text-slate-400">
+            <div className="text-2xl mb-2">☕</div>
+            <div className="text-sm">ยังไม่มีรายการต้องอบ — พักแป๊บ</div>
+          </div>
+        )}
         <div className="space-y-2">
           {totals.map((m, i) => (
             <div key={m.menuName + m.unit}>

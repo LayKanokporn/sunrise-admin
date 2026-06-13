@@ -9,6 +9,7 @@ import InlineStatusBar from '../components/InlineStatusBar';
 import AddOrderModal from '../components/AddOrderModal';
 import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
 import BulkActionBar from '../components/BulkActionBar';
+import { SkeletonOrderCard } from '../components/Skeleton';
 import { Plus } from 'lucide-react';
 
 const columns = [
@@ -98,6 +99,7 @@ export default function Kanban() {
               <span className="badge bg-white text-slate-700">{col.orders.length}</span>
             </div>
             <div className="space-y-3">
+              {isLoading && [1,2].map(i => <SkeletonOrderCard key={'sk'+i} />)}
               {col.orders.map((o) => (
                 <div key={o.orderId}>
                   <OrderCard
@@ -113,8 +115,8 @@ export default function Kanban() {
                   <InlineStatusBar order={o} />
                 </div>
               ))}
-              {col.orders.length === 0 && (
-                <div className="text-xs text-slate-400 text-center py-4">— ว่าง —</div>
+              {!isLoading && col.orders.length === 0 && (
+                <div className="text-xs text-slate-400 text-center py-4">🌤️ ยังว่าง</div>
               )}
             </div>
           </div>

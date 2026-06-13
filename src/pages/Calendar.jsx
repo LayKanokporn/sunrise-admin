@@ -88,6 +88,7 @@ export default function CalendarPage() {
   const [announcing, setAnnouncing] = useState(false);
   async function announceDay() {
     if (!confirm('ประกาศรายการส่งของวันนี้เข้ากลุ่ม LINE?')) return;
+    if (navigator.vibrate) navigator.vibrate(12);
     setAnnouncing(true);
     try {
       const r = await api.announceDay(picked);

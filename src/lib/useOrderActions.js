@@ -4,6 +4,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from './api';
 import { toast } from './toast';
+import { buzz, buzzError } from './haptic';
 
 export function useOrderActions() {
   const qc = useQueryClient();
@@ -31,6 +32,7 @@ export function useOrderActions() {
 
   // core runner — optimistic + call API + undo support
   async function run({ orderId, patch, apiCall, successMsg, undo }) {
+    buzz(10);                                              // ⓪ haptic — รู้สึกกดติด
     const snapshots = patchOrderInCache(orderId, patch);   // ① UI เปลี่ยนทันที
     try {
       const res = await apiCall();                          // ② call server
@@ -52,6 +54,7 @@ export function useOrderActions() {
       return res;
     } catch (e) {
       rollback(snapshots);                                 // ④ fail → คืนค่าเดิม
+      buzzError();
       toast.error('ล้มเหลว: ' + e.message);
       throw e;
     }

@@ -70,9 +70,17 @@ export default function AuditLog() {
         </div>
       </div>
 
-      {isLoading && <div className="text-center text-slate-500 py-8">⏳ กำลังโหลด...</div>}
 
       <div className="card divide-y divide-slate-100">
+        {isLoading && [1,2,3,4,5].map(i => (
+          <div key={'sk'+i} className="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
+            <div className="flex-1 space-y-1.5">
+              <div className="h-3 w-32 bg-slate-200 rounded animate-pulse" />
+              <div className="h-2 w-48 bg-slate-100 rounded animate-pulse" />
+            </div>
+            <div className="h-3 w-20 bg-slate-200 rounded animate-pulse" />
+          </div>
+        ))}
         {entries.map((e, i) => {
           const sb = statusBadge(e);
           return (
@@ -95,7 +103,10 @@ export default function AuditLog() {
           );
         })}
         {!isLoading && entries.length === 0 && (
-          <div className="text-center text-slate-400 py-8">— ยังไม่มีประวัติ —</div>
+          <div className="text-center text-slate-400 py-8">
+            <div className="text-2xl mb-2">📜</div>
+            <div className="text-sm">ยังไม่มีประวัติ — เริ่มต้นด้วยการแก้ไขออเดอร์</div>
+          </div>
         )}
       </div>
     </div>
