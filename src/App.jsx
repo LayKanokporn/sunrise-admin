@@ -146,7 +146,7 @@ function AppInner() {
 
   return (
     <ModalCtx.Provider value={modals}>
-      <div className="min-h-screen pb-20" data-density={prefs.density} data-cb={prefs.colorBlind ? '1' : '0'}>
+      <div className="min-h-screen pb-20" data-density={prefs.density}>
         <OfflineBanner />
         <PullIndicator />
         <TopBar profile={profile} onOpenSearch={() => setShowSearch(true)} />

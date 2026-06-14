@@ -1,4 +1,4 @@
-// [#prefs] Preferences store — density / color-blind / pinned orders
+// [#prefs] Preferences store — density / pinned orders
 //   pub/sub แบบเดียวกับ toast.js, persist ใน localStorage
 //   logging: console ทุกการเปลี่ยน (Habit 5)
 import { useEffect, useState } from 'react';
@@ -11,12 +11,11 @@ function load() {
     const p = raw ? JSON.parse(raw) : {};
     return {
       density: p.density === 'compact' ? 'compact' : 'comfortable',
-      colorBlind: !!p.colorBlind,
       pins: Array.isArray(p.pins) ? p.pins : []
     };
   } catch (e) {
     console.log(`[${new Date().toISOString()}] [WARN] [prefs/load] ${e.message}`);
-    return { density: 'comfortable', colorBlind: false, pins: [] };
+    return { density: 'comfortable', pins: [] };
   }
 }
 
@@ -41,8 +40,6 @@ export const prefs = {
   get: () => state,
   setDensity: (d) => set({ density: d === 'compact' ? 'compact' : 'comfortable' }),
   toggleDensity: () => set({ density: state.density === 'compact' ? 'comfortable' : 'compact' }),
-  setColorBlind: (v) => set({ colorBlind: !!v }),
-  toggleColorBlind: () => set({ colorBlind: !state.colorBlind }),
   // pin/unpin order
   togglePin: (orderId) => {
     const has = state.pins.includes(orderId);

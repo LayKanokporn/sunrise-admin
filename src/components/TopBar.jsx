@@ -1,7 +1,7 @@
 // [v0.8] TopBar — refresh + search + notification badge
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
-import { RefreshCw, Search, Bell, Settings, Rows3, Rows2, Eye } from 'lucide-react';
+import { RefreshCw, Search, Bell, Settings, Rows3, Rows2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { prefs, usePrefs } from '../lib/prefs';
 
@@ -76,14 +76,6 @@ export default function TopBar({ profile, onOpenSearch }) {
                     <span className="flex-1 text-left">ความหนาแน่น</span>
                     <span className="text-xs text-sunrise-600 font-medium">
                       {p.density === 'compact' ? 'กะทัดรัด' : 'สบายตา'}
-                    </span>
-                  </button>
-                  <button onClick={() => prefs.toggleColorBlind()}
-                    className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-slate-50">
-                    <Eye size={16} />
-                    <span className="flex-1 text-left">โหมดตาบอดสี</span>
-                    <span className={'text-xs font-medium ' + (p.colorBlind ? 'text-green-600' : 'text-slate-400')}>
-                      {p.colorBlind ? 'เปิด' : 'ปิด'}
                     </span>
                   </button>
                 </div>

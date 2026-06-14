@@ -20,11 +20,6 @@
 [data-density="compact"] .order-card { @apply text-xs; }
 [data-density="compact"] .order-card .card-items { @apply hidden; }
 
-/* [#cb] Color-blind safe — เพิ่ม "ลาย/สัญลักษณ์" ให้สถานะ ไม่พึ่งสีอย่างเดียว */
-[data-cb="1"] .border-l-red-500   { border-left-style: double; border-left-width: 6px; }
-[data-cb="1"] .border-l-orange-400{ border-left-style: dashed; }
-[data-cb="1"] .border-l-indigo-500{ border-left-style: dotted; border-left-width: 6px; }
-[data-cb="1"] .badge { @apply ring-1 ring-inset ring-current; }
 
 /* [v0.9] toast slide-in animation */
 @keyframes toast-in {
