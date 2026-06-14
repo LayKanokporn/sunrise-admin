@@ -182,20 +182,50 @@ export default function CalendarPage() {
   }, [monthQ.data]);
 
   // KPI ของเดือน
+  const todayKey = fmtISO(today);
+  const tomorrowKey = useMemo(() => {
+    const d = new Date(today); d.setDate(d.getDate() + 1); return fmtISO(d);
+  }, [today]);
+
   const monthStats = useMemo(() => {
-    const orders = (monthQ.data?.orders || []).filter(o => {
+    const all = (monthQ.data?.orders || []);
+    const orders = all.filter(o => {
       const d = parseISO(o.deliveryDateISO);
       return d.getFullYear() === year && d.getMonth() === month;
     });
-    return {
-      count: orders.length,
-      shops: new Set(orders.map(o => o.customerName).filter(Boolean)).size,
-      urgent: orders.filter(o => o.isUrgent).length,
-      pending: orders.filter(o => (o.paymentStatus || '').toLowerCase() !== 'paid').length
-    };
-  }, [monthQ.data, year, month]);
 
-  const todayKey = fmtISO(today);
+    // 7 วันล่าสุด vs 7 วันก่อนหน้า (week comparison)
+    const last7 = [], prev7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i); last7.push(fmtISO(d));
+    }
+    for (let i = 13; i >= 7; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i); prev7.push(fmtISO(d));
+    }
+
+    const dayCount = (keys, predFn = () => true) => keys.map(k =>
+      all.filter(o => o.deliveryDateISO === k && predFn(o)).length
+    );
+
+    const sparkOrders  = dayCount(last7);
+    const sparkUrgent  = dayCount(last7, o => o.isUrgent);
+    const sparkPending = dayCount(last7, o => (o.paymentStatus || '').toLowerCase() !== 'paid');
+
+    const sumArr = (arr) => arr.reduce((s, x) => s + x, 0);
+    const thisWeek = sumArr(sparkOrders);
+    const prevWeek = sumArr(dayCount(prev7));
+    const weekDelta = prevWeek === 0 ? null : Math.round((thisWeek - prevWeek) / prevWeek * 100);
+
+    const pending = orders.filter(o => (o.paymentStatus || '').toLowerCase() !== 'paid').length;
+    const count   = orders.length;
+
+    return {
+      count, urgent: orders.filter(o => o.isUrgent).length, pending,
+      tomorrow: all.filter(o => o.deliveryDateISO === tomorrowKey).length,
+      sparkOrders, sparkUrgent, sparkPending,
+      weekDelta
+    };
+  }, [monthQ.data, year, month, tomorrowKey]);
   usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด → จัดเรียงใหม่ทันที
 
   return (
@@ -203,10 +233,18 @@ export default function CalendarPage() {
       {/* [v0.4] KPI — โฟกัสที่ออเดอร์ที่ต้องทำ (ไม่เอายอดเงิน) */}
       {/* [v0.12/M1] มือถือ: 4 ใบแถวเดียวแบบ compact — เห็นปฏิทินทันทีไม่ต้อง scroll */}
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
-        <StatCard icon={<Package size={18}/>}     label="ออเดอร์"   value={monthStats.count}   color="text-sunrise-600 bg-sunrise-50" />
-        <StatCard icon={<TrendingUp size={18}/>}  label="ร้าน"      value={monthStats.shops}   color="text-blue-600 bg-blue-50" />
-        <StatCard icon={<AlertCircle size={18}/>} label="ด่วน"      value={monthStats.urgent}  color="text-red-600 bg-red-50" />
-        <StatCard icon={<DollarSign size={18}/>}  label="ค้างชำระ"  value={monthStats.pending} color="text-amber-600 bg-amber-50" />
+        <StatCard icon={<Package size={18}/>}     label="ออเดอร์"  value={monthStats.count}   color="text-sunrise-600 bg-sunrise-50"
+          spark={monthStats.sparkOrders}  delta={monthStats.weekDelta}
+          onClick={() => pickDate(todayKey)} />
+        <StatCard icon={<TrendingUp size={18}/>}  label="พรุ่งนี้" value={monthStats.tomorrow} color="text-blue-600 bg-blue-50"
+          onClick={() => pickDate(tomorrowKey)} />
+        <StatCard icon={<AlertCircle size={18}/>} label="ด่วน"     value={monthStats.urgent}  color="text-red-600 bg-red-50"
+          spark={monthStats.sparkUrgent}  active={filters.has('urgent')}
+          onClick={() => toggleFilter('urgent')} />
+        <StatCard icon={<DollarSign size={18}/>}  label="ค้างชำระ" value={monthStats.pending} color="text-amber-600 bg-amber-50"
+          spark={monthStats.sparkPending} active={filters.has('pending')}
+          progress={{ value: monthStats.pending, total: monthStats.count }}
+          onClick={() => toggleFilter('pending')} />
       </div>
 
       {/* ── Month nav ── [v0.12/M4] sticky — เปลี่ยนเดือนได้ตลอดเวลา scroll */}
@@ -454,15 +492,57 @@ export default function CalendarPage() {
 }
 
 // [v0.12/M1] มือถือ: แนวตั้ง compact (เลข + label เล็ก, ไม่มี icon) / จอใหญ่: เหมือนเดิม
-function StatCard({ icon, label, value, color }) {
+function Sparkline({ data, color }) {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(1, ...data);
+  const W = 40, H = 16;
+  const pts = data.map((v, i) =>
+    `${(i / (data.length - 1)) * W},${H - (v / max) * H}`
+  ).join(' ');
   return (
-    <div className="card !p-2 sm:!p-4 flex flex-col sm:flex-row items-center sm:gap-3 text-center sm:text-left">
-      <div className={'hidden sm:block p-2 rounded-lg ' + color}>{icon}</div>
-      <div className="min-w-0">
-        <div className="font-bold text-base sm:text-lg leading-tight truncate">{value}</div>
-        <div className="text-[10px] sm:text-xs text-slate-500 truncate">{label}</div>
+    <svg width={W} height={H} className="opacity-60">
+      <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+        className={color.replace('bg-', 'text-').replace(/\s+bg-\S+/, '')} />
+    </svg>
+  );
+}
+
+function StatCard({ icon, label, value, color, onClick, delta, spark, progress, active }) {
+  const Wrapper = onClick ? 'button' : 'div';
+  return (
+    <Wrapper
+      onClick={onClick}
+      className={
+        'card !p-2 sm:!p-3 flex flex-col text-left relative overflow-hidden transition-all w-full ' +
+        (onClick ? 'hover:shadow-md active:scale-[0.97] cursor-pointer ' : '') +
+        (active ? 'ring-2 ring-offset-1 ring-current ' : '')
+      }
+    >
+      {/* icon + delta row */}
+      <div className="flex items-center justify-between mb-1">
+        <div className={'p-1.5 rounded-lg ' + color}>{icon}</div>
+        {delta !== null && delta !== undefined && (
+          <span className={'text-[10px] font-semibold ' + (delta >= 0 ? 'text-green-600' : 'text-red-500')}>
+            {delta >= 0 ? '▲' : '▼'}{Math.abs(delta)}%
+          </span>
+        )}
       </div>
-    </div>
+      {/* value + label */}
+      <div className="font-bold text-base sm:text-lg leading-tight">{value}</div>
+      <div className="flex items-end justify-between gap-1">
+        <div className="text-[10px] sm:text-xs text-slate-500 truncate">{label}</div>
+        {spark && <Sparkline data={spark} color={color} />}
+      </div>
+      {/* progress bar */}
+      {progress && progress.total > 0 && (
+        <div className="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-amber-400 transition-all"
+            style={{ width: `${Math.round((progress.value / progress.total) * 100)}%` }}
+          />
+        </div>
+      )}
+    </Wrapper>
   );
 }
 
