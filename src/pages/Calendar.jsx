@@ -303,15 +303,20 @@ export default function CalendarPage() {
         {dayHeaders.map((d) => <div key={d}>{d}</div>)}
       </div>
 
-      {/* ── Month grid ── row-based + week numbers + heat + [#swipe] */}
-      <div className="space-y-1 sm:space-y-2" onTouchStart={gridTouchStart} onTouchEnd={gridTouchEnd}>
-        {calRows.map((row, wi) => (
-          <div key={wi} className="grid grid-cols-[20px_repeat(7,1fr)] sm:grid-cols-[28px_repeat(7,1fr)] gap-1 sm:gap-2">
-            {/* เลขสัปดาห์ */}
-            <div className="text-[8px] sm:text-[10px] text-slate-300 text-center flex items-start pt-2">
-              {getISOWeek(row[0].date)}
-            </div>
-            {row.map((cell, ci) => {
+      {/* ── Month grid ── single grid → ทุกช่องสูงเท่ากัน + week col + heat + [#swipe] */}
+      <div
+        className="grid grid-cols-[20px_repeat(7,1fr)] sm:grid-cols-[28px_repeat(7,1fr)] gap-1 sm:gap-2"
+        style={{ gridAutoRows: '1fr' }}
+        onTouchStart={gridTouchStart} onTouchEnd={gridTouchEnd}>
+        {calRows.map((row, wi) => {
+          const weekNum = getISOWeek(row[0].date);
+          return [
+            // เลขสัปดาห์
+            <div key={`w${wi}`} className="text-[8px] sm:text-[10px] text-slate-300 text-center flex items-start justify-center pt-2">
+              {weekNum}
+            </div>,
+            // 7 วันในสัปดาห์
+            ...row.map((cell, ci) => {
               const info = byDate[cell.isoKey];
               const isPicked = picked === cell.isoKey;
               const isToday = cell.isoKey === todayKey;
@@ -321,7 +326,7 @@ export default function CalendarPage() {
               const isEmpty = !info && cell.inMonth;
               return (
                 <button
-                  key={ci}
+                  key={`${wi}-${ci}`}
                   onClick={() => {
                     if (lpFired.current) { lpFired.current = false; return; }
                     if (isEmpty) { setAddWithDate(cell.isoKey); }
@@ -332,7 +337,7 @@ export default function CalendarPage() {
                   onPointerLeave={cancelLongPress}
                   onPointerMove={cancelLongPress}
                   className={
-                    'rounded-lg p-1 sm:p-2 text-left min-h-[52px] sm:min-h-[110px] transition-all border ' +
+                    'rounded-lg p-1 sm:p-2 text-left overflow-hidden transition-all border w-full ' +
                     (!cell.inMonth ? 'opacity-25 pointer-events-none ' :
                       isPast ? 'opacity-50 ' : '') +
                     (isToday ? 'bg-sunrise-50 ' :
@@ -350,7 +355,6 @@ export default function CalendarPage() {
                   </div>
                   {info && (
                     <div className="mt-0.5 sm:mt-1 space-y-0.5">
-                      {/* มือถือ: badge สีตามสถานะ */}
                       <div className="sm:hidden flex justify-center">
                         <span className={'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] font-bold ' +
                           (hasUrgent  ? 'bg-red-100 text-red-600' :
@@ -362,7 +366,6 @@ export default function CalendarPage() {
                       <div className="hidden sm:block text-xs font-bold text-sunrise-600">
                         {info.count} ออเดอร์
                       </div>
-                      {/* ชื่อร้าน — จอใหญ่เท่านั้น โชว์ครบ */}
                       <div className="hidden sm:block text-[10px] text-slate-600 space-y-0.5">
                         {info.shops.slice(0, 5).map((s, si) => (
                           <div key={si} className="truncate leading-tight">• {s}</div>
@@ -373,15 +376,14 @@ export default function CalendarPage() {
                       </div>
                     </div>
                   )}
-                  {/* empty day hint — มือถือซ่อน */}
                   {isEmpty && !isPast && (
-                    <div className="hidden sm:flex items-center justify-center h-full text-slate-200 text-lg mt-1">+</div>
+                    <div className="hidden sm:flex items-center justify-center pt-2 text-slate-200 text-lg">+</div>
                   )}
                 </button>
               );
-            })}
-          </div>
-        ))}
+            })
+          ];
+        })}
       </div>
 
       {/* [v0.4] Legend */}
