@@ -88,8 +88,9 @@ export default function CalendarPage() {
   const [picked, setPicked] = useState(fmtISO(today));
   // [v0.5] modal state — false=ปิด | null=เปิดไม่ pre-fill | 'YYYY-MM-DD'=เปิด+pre-fill
   const [addWithDate, setAddWithDate] = useState(false);
-  // [v0.12/M3] มือถือ: day detail เป็น bottom sheet
   const [sheetOpen, setSheetOpen] = useState(false);
+  // [M3] month/year picker popover บน header
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
   const modals = useModals();
   // [v0.6] auto-scroll ลง detail เมื่อเลือกวัน (เฉพาะจอใหญ่)
   const detailRef = useRef(null);
@@ -97,9 +98,11 @@ export default function CalendarPage() {
     setPicked(iso);
     if (window.matchMedia('(max-width: 639px)').matches) {
       setSheetOpen(true);
-    } else {
+    } else if (!window.matchMedia('(min-width: 1024px)').matches) {
+      // sm-lg: scroll ลงหา detail (ยังไม่ split-screen)
       setTimeout(() => detailRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
     }
+    // lg+: detail อยู่ข้างๆ — ไม่ต้อง scroll
   }
   // [v0.13] ประกาศรายการของวันที่เลือกเข้ากลุ่ม LINE
   const [announcing, setAnnouncing] = useState(false);
@@ -287,12 +290,41 @@ export default function CalendarPage() {
           onClick={() => toggleFilter('pending')} />
       </div>
 
+      {/* [W4] split layout: ปฏิทินซ้าย + รายการวันขวา บน lg+ */}
+      <div className="lg:flex lg:gap-6 lg:items-start">
+      <div className="flex-1 min-w-0 space-y-4">
+
       {/* ── Month nav ── [v0.12/M4] sticky — เปลี่ยนเดือนได้ตลอดเวลา scroll */}
       <div className="card flex items-center justify-between sticky top-[57px] sm:top-[106px] z-20 shadow-sm">
         <button onClick={() => setAnchor(addMonths(anchor, -1))} className="btn btn-ghost p-2"><ChevronLeft size={20} /></button>
-        <div className="text-center">
-          <div className="font-bold text-lg">{monthNamesTH[month]} {year + 543}</div>
+        <div className="text-center relative">
+          {/* [M3] กดชื่อเดือน → month picker */}
+          <button
+            onClick={() => setShowMonthPicker(v => !v)}
+            className="font-bold text-lg hover:text-sunrise-600 transition-colors">
+            {monthNamesTH[month]} {year + 543}
+          </button>
           {monthQ.isFetching && <div className="text-xs text-slate-400">⏳ โหลด...</div>}
+          {showMonthPicker && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-40 bg-white rounded-xl shadow-2xl border border-slate-200 p-3 w-56"
+                 onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-2">
+                <button onClick={() => setAnchor(new Date(year-1, month, 1))} className="btn btn-ghost p-1"><ChevronLeft size={14}/></button>
+                <span className="font-bold text-sm">{year + 543}</span>
+                <button onClick={() => setAnchor(new Date(year+1, month, 1))} className="btn btn-ghost p-1"><ChevronRight size={14}/></button>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {monthNamesTH.map((m, i) => (
+                  <button key={i}
+                    onClick={() => { setAnchor(new Date(year, i, 1)); setShowMonthPicker(false); }}
+                    className={'text-xs py-1.5 rounded-lg font-medium transition-colors ' +
+                      (i === month ? 'bg-sunrise-500 text-white' : 'hover:bg-slate-100 text-slate-700')}>
+                    {m.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <button onClick={() => setAnchor(addMonths(anchor, 1))} className="btn btn-ghost p-2"><ChevronRight size={20} /></button>
       </div>
@@ -394,6 +426,62 @@ export default function CalendarPage() {
         <span className="sm:hidden flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-blue-200"/> ปกติ</span>
         <span className="hidden sm:inline">🚨 = มีด่วน • เลขส้ม = จำนวน • ชื่อร้านใต้เลข • กดช่องว่าง = เพิ่มออเดอร์</span>
       </div>
+      </div>{/* end LEFT column */}
+
+      {/* RIGHT column: day detail — sm+ only, sticky บน lg+ */}
+      <div ref={detailRef} className="hidden sm:block lg:w-[400px] lg:shrink-0 lg:sticky lg:top-[106px] lg:self-start lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto card scroll-mt-32">
+        {/* [#sticky] หัววันที่เกาะบนตอนเลื่อนดูลิสต์ยาว */}
+        <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pt-1 pb-3 mb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div className="font-bold">
+              {parseISO(picked).toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
+            </div>
+            {dayQ.data && (
+              <div className="text-sm text-slate-500">
+                {dayQ.data.count} ออเดอร์
+                {dayQ.data.orders.length > 0 && ' • ฿' + dayQ.data.orders.reduce((s,o)=>s+o.grandTotal,0).toLocaleString()}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={announceDay} disabled={announcing || !dayQ.data?.orders?.length}
+              className="btn bg-sky-500 text-white text-sm px-3 flex items-center gap-1 disabled:opacity-40">
+              <Megaphone size={14} /> ประกาศเข้ากลุ่ม
+            </button>
+            <button onClick={() => setPicked(todayKey)} className="btn btn-ghost text-sm">↻ วันนี้</button>
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <FilterChips chips={ORDER_FILTERS} active={filters} onToggle={toggleFilter} />
+        </div>
+
+        {dayQ.isLoading && (
+          <div className="grid grid-cols-1 gap-3">
+            {[1,2,3].map(i => <SkeletonOrderCard key={i} />)}
+          </div>
+        )}
+        {dayQ.data?.orders.length === 0 && (
+          <div className="text-center text-slate-400 py-8">— ไม่มีออเดอร์วันนี้ —</div>
+        )}
+
+        <div className="grid grid-cols-1 gap-3">
+          {sortPinned(applyOrderFilters(dayQ.data?.orders || [], filters)).map((o) => (
+            <OrderCard
+              key={o.orderId}
+              order={o}
+              onClick={() => modals.openOrder(o)}
+              selected={selectedIds.has(o.orderId)}
+              onToggleSelect={toggleSelect}
+              onCustomerClick={modals.openCustomer}
+            />
+          ))}
+        </div>
+        {dayQ.data?.orders?.length > 0 && applyOrderFilters(dayQ.data.orders, filters).length === 0 && (
+          <div className="text-center text-slate-400 py-8 text-sm">— filter ทำให้ไม่เหลือออเดอร์ —</div>
+        )}
+      </div>
+      </div>{/* end split layout */}
 
       {/* [C3] ปุ่มวันนี้ลอย — แสดงเมื่อ anchor ไม่ใช่เดือนปัจจุบัน */}
       {(anchor.getFullYear() !== today.getFullYear() || anchor.getMonth() !== today.getMonth()) && (
@@ -456,61 +544,6 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
-
-      {/* ── Day detail (จอใหญ่: inline เหมือนเดิม) ── */}
-      <div ref={detailRef} className="hidden sm:block card scroll-mt-32">
-        {/* [#sticky] หัววันที่เกาะบนตอนเลื่อนดูลิสต์ยาว */}
-        <div className="sticky top-[106px] z-10 bg-white -mx-4 px-4 pt-1 pb-3 mb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <div className="font-bold">
-              {parseISO(picked).toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
-            </div>
-            {dayQ.data && (
-              <div className="text-sm text-slate-500">
-                {dayQ.data.count} ออเดอร์
-                {dayQ.data.orders.length > 0 && ' • ฿' + dayQ.data.orders.reduce((s,o)=>s+o.grandTotal,0).toLocaleString()}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <button onClick={announceDay} disabled={announcing || !dayQ.data?.orders?.length}
-              className="btn bg-sky-500 text-white text-sm px-3 flex items-center gap-1 disabled:opacity-40">
-              <Megaphone size={14} /> ประกาศเข้ากลุ่ม
-            </button>
-            <button onClick={() => setPicked(todayKey)} className="btn btn-ghost text-sm">↻ วันนี้</button>
-          </div>
-        </div>
-
-        {/* [v0.8] filter chips */}
-        <div className="mb-3">
-          <FilterChips chips={ORDER_FILTERS} active={filters} onToggle={toggleFilter} />
-        </div>
-
-        {dayQ.isLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {[1,2,3].map(i => <SkeletonOrderCard key={i} />)}
-          </div>
-        )}
-        {dayQ.data?.orders.length === 0 && (
-          <div className="text-center text-slate-400 py-8">— ไม่มีออเดอร์วันนี้ —</div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sortPinned(applyOrderFilters(dayQ.data?.orders || [], filters)).map((o) => (
-            <OrderCard
-              key={o.orderId}
-              order={o}
-              onClick={() => modals.openOrder(o)}
-              selected={selectedIds.has(o.orderId)}
-              onToggleSelect={toggleSelect}
-              onCustomerClick={modals.openCustomer}
-            />
-          ))}
-        </div>
-        {dayQ.data?.orders?.length > 0 && applyOrderFilters(dayQ.data.orders, filters).length === 0 && (
-          <div className="text-center text-slate-400 py-8 text-sm">— filter ทำให้ไม่เหลือออเดอร์ —</div>
-        )}
-      </div>
 
       {/* [#longpress] popover ดูลิสต์ออเดอร์แบบเร็ว */}
       {preview && (() => {

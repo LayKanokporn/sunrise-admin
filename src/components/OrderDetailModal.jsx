@@ -38,6 +38,7 @@ export default function OrderDetailModal({ order, onClose }) {
     setEdit({
       customer: order.customerName || '',
       phone: order.phone || '',
+      date: order.deliveryDateISO || '',
       time: order.deliveryTime || '',
       location: order.location || '',
       note: order.note || ''
@@ -158,6 +159,11 @@ export default function OrderDetailModal({ order, onClose }) {
             <div className="space-y-3">
               <Field label="ลูกค้า"     icon={<Phone size={14}/>} value={edit.customer} onChange={(v) => setEdit({...edit, customer:v})} />
               <Field label="เบอร์โทร"  value={edit.phone}    onChange={(v) => setEdit({...edit, phone:v})}    />
+              <label className="block">
+                <div className="text-xs text-slate-500 mb-1">📅 วันส่ง</div>
+                <input type="date" value={edit.date||''} onChange={(e) => setEdit({...edit, date:e.target.value})}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+              </label>
               <Field label="เวลาส่ง"   icon={<Clock size={14}/>} value={edit.time}     onChange={(v) => setEdit({...edit, time:v})}     placeholder="HH:MM" />
               <Field label="ที่อยู่"   icon={<MapPin size={14}/>} value={edit.location} onChange={(v) => setEdit({...edit, location:v})} multiline />
               <Field label="หมายเหตุ"  value={edit.note}     onChange={(v) => setEdit({...edit, note:v})}     multiline />

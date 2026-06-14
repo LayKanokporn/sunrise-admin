@@ -1,4 +1,5 @@
 // [v0.9] OrderCard — inline action buttons + color code + bulk select + customer click
+import { useState, useRef } from 'react';
 import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil, Banknote, Copy, Star } from 'lucide-react';
 import { useOrderActions } from '../lib/useOrderActions';
 import { toast } from '../lib/toast';
@@ -49,8 +50,8 @@ export default function OrderCard({
   showInlineActions = true   // [B1] ปุ่มบนการ์ด
 }) {
   const actions = useOrderActions();
-  const p = usePrefs();                          // [#prefs] re-render เมื่อ pin เปลี่ยน
-  const pinned = p.pins.includes(order.orderId); // [#pin] ปักหมุด
+  const p = usePrefs();
+  const pinned = p.pins.includes(order.orderId);
   const isPaid = (order.paymentStatus || '').toLowerCase() === 'paid';
   const isDelivered = /completed|delivered|ส่งแล้ว/.test((order.status || '').toLowerCase());
   const isCancelled = order.status === '❌ ยกเลิก';
@@ -59,7 +60,27 @@ export default function OrderCard({
   const firstItems = (order.items || []).slice(0, 3);
   const moreItems = itemCount - firstItems.length;
 
+  // [M1] swipe actions: ← mark paid, → toggle urgent
+  const swipeStartX = useRef(null);
+  const [swipeDx, setSwipeDx] = useState(0);
+  function onSwipeStart(e) { swipeStartX.current = e.touches[0].clientX; }
+  function onSwipeMove(e) {
+    if (swipeStartX.current === null) return;
+    const dx = e.touches[0].clientX - swipeStartX.current;
+    setSwipeDx(Math.max(-80, Math.min(80, dx)));
+  }
+  function onSwipeEnd() {
+    const dx = swipeDx;
+    swipeStartX.current = null;
+    setSwipeDx(0);
+    if (dx < -70 && !isPaid && !isCancelled) actions.markPaid(order);
+    else if (dx > 70 && !isCancelled) actions.toggleUrgent(order);
+  }
+
   const stop = (e) => e.stopPropagation();
+
+  // [M1] swipe hint: สีพื้นหลังเปลี่ยนตามทิศที่ปัด
+  const swipeHint = swipeDx < -20 ? 'bg-emerald-50' : swipeDx > 20 ? 'bg-red-50' : '';
 
   return (
     <div
@@ -67,9 +88,13 @@ export default function OrderCard({
         if (e.target.closest('[data-no-card-click]')) return;
         onClick?.();
       }}
+      onTouchStart={onSwipeStart}
+      onTouchMove={onSwipeMove}
+      onTouchEnd={onSwipeEnd}
+      style={{ transform: `translateX(${swipeDx}px)`, transition: swipeDx === 0 ? 'transform 0.2s' : 'none' }}
       className={
         'order-card card relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow border-l-4 ' +
-        style.border + ' ' + style.bg + ' ' +
+        style.border + ' ' + (swipeHint || style.bg) + ' ' +
         (pinned ? 'ring-1 ring-amber-300 ' : '') +
         (selected ? 'ring-2 ring-sunrise-500 ' : '')
       }>
@@ -177,7 +202,9 @@ export default function OrderCard({
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
         {isPaid
           ? <span className="badge bg-green-100 text-green-700"><CheckCircle2 size={12} className="mr-0.5"/> ชำระแล้ว</span>
-          : <span className="badge bg-amber-100 text-amber-700"><CreditCard size={12} className="mr-0.5"/> รอชำระ</span>
+          : isDelivered
+            ? <span className="badge bg-red-100 text-red-700 font-bold"><Banknote size={12} className="mr-0.5"/> ⚠ ค้างชำระ</span>
+            : <span className="badge bg-amber-100 text-amber-700"><CreditCard size={12} className="mr-0.5"/> รอชำระ</span>
         }
         <div className="font-bold text-sunrise-600">฿{order.grandTotal.toLocaleString()}</div>
       </div>

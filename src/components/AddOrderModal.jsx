@@ -5,6 +5,42 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Sparkles, Send, UserSearch } from 'lucide-react';
 import { api } from '../lib/api';
 
+const DAY_NAMES = ['จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์','อาทิตย์'];
+
+function detectWarnings(text) {
+  const warnings = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    // qty spike: "N x M = Z" pattern — Z likely parsed as qty
+    const mulM = line.match(/(\d+)\s*[xX×]\s*(\d+)\s*=\s*(\d+)/);
+    if (mulM && +mulM[3] > 50)
+      warnings.push(`จำนวน ${mulM[3]} ในบรรทัด "${line}" อาจเป็นผลคูณ ไม่ใช่ qty จริง`);
+    // "รวม" line may be parsed as item
+    if (/^รวม[\s฿\d]/.test(line))
+      warnings.push(`บรรทัด "${line}" อาจถูก parse เป็นเมนู "รวม" — ตรวจสอบหลัง save`);
+    // CE year (< 2500)
+    const yearM = line.match(/\b(20\d{2})\b/);
+    if (yearM)
+      warnings.push(`ปี ค.ศ. ${yearM[1]} — ควรเป็นปี พ.ศ. ${+yearM[1]+543} (เช่น "2569" ไม่ใช่ "${yearM[1]}")`);
+    // day-name only (no full date)
+    if (DAY_NAMES.some(d => line === d || line === `วัน${d}`))
+      warnings.push(`"${line}" — ชื่อวันเดี่ยว ควรระบุวันที่ครบ เช่น "จันทร์ที่ 16 มิถุนายน 2569"`);
+  }
+  return warnings;
+}
+
+// bigram similarity — ใช้ sort fuzzy match ใน CustomerQuickFill
+function bigramSim(a, b) {
+  const norm = (s) => s.replace(/\s/g, '').toLowerCase();
+  const na = norm(a), nb = norm(b);
+  if (!na || !nb) return 0;
+  const bigrams = (s) => new Set([...Array(Math.max(0, s.length - 1))].map((_, i) => s[i] + s[i + 1]));
+  const ba = bigrams(na), bb = bigrams(nb);
+  const inter = [...ba].filter((x) => bb.has(x)).length;
+  return (2 * inter) / ((ba.size + bb.size) || 1);
+}
+
 const SAMPLE = `ออเดอร์รอบส่ง 12 มิถุนายน 2569 @ตัวอย่างร้าน
 
 มะพร้าวลูก 3 ชิ้น 300฿
@@ -23,8 +59,9 @@ export default function AddOrderModal({ onClose, defaultDate }) {
   const [text, setText] = useState(defaultDate ? `ออเดอร์รอบส่ง ${isoToThaiDate(defaultDate)}\n\n` : '');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
-  // [v0.11/B3] duplicate guard — server ตอบ duplicate:true → ถามยืนยันก่อนบันทึกซ้ำ
   const [dupConfirm, setDupConfirm] = useState(null);
+
+  const warnings = useMemo(() => detectWarnings(text), [text]);
 
   async function submit(force = false) {
     if (!text.trim()) return;
@@ -93,6 +130,13 @@ export default function AddOrderModal({ onClose, defaultDate }) {
             <div className="text-xs text-slate-400">{text.length} ตัวอักษร</div>
           </div>
 
+          {warnings.length > 0 && (
+            <div className="p-3 rounded-lg text-sm bg-yellow-50 text-yellow-800 border border-yellow-200 space-y-1">
+              <div className="font-semibold">⚠️ ตรวจพบปัญหาที่อาจเกิดขึ้น</div>
+              {warnings.map((w, i) => <div key={i} className="text-xs">• {w}</div>)}
+            </div>
+          )}
+
           {dupConfirm && (
             <div className="p-3 rounded-lg text-sm bg-amber-50 text-amber-800 border border-amber-200 space-y-2">
               <div className="font-semibold">⚠️ พบออเดอร์ซ้ำ</div>
@@ -159,7 +203,7 @@ function CustomerQuickFill({ onPick }) {
     staleTime: 60_000
   });
 
-  // dedupe ตามชื่อลูกค้า — เก็บออเดอร์ล่าสุด (มีเบอร์/ที่อยู่)
+  // dedupe ตามชื่อลูกค้า → เก็บออเดอร์ล่าสุด → sort fuzzy ตาม q
   const customers = useMemo(() => {
     const seen = new Map();
     (data?.orders || []).forEach((o) => {
@@ -168,8 +212,12 @@ function CustomerQuickFill({ onPick }) {
       const cur = seen.get(key);
       if (!cur || (o.deliveryDateISO || '') > (cur.deliveryDateISO || '')) seen.set(key, o);
     });
-    return [...seen.values()].slice(0, 8);
-  }, [data]);
+    const list = [...seen.values()];
+    if (debounced) {
+      list.sort((a, b) => bigramSim(debounced, b.customerName) - bigramSim(debounced, a.customerName));
+    }
+    return list.slice(0, 8);
+  }, [data, debounced]);
 
   return (
     <div className="relative">
