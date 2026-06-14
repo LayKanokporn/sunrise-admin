@@ -12,9 +12,15 @@ const SAMPLE = `ออเดอร์รอบส่ง 12 มิถุนาย
 
 รวม 450฿`;
 
-export default function AddOrderModal({ onClose }) {
+const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+function isoToThaiDate(iso) {
+  const [y, m, d] = (iso||'').split('-');
+  return `${+d} ${THAI_MONTHS[+m-1]} ${+y+543}`;
+}
+
+export default function AddOrderModal({ onClose, defaultDate }) {
   const qc = useQueryClient();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(defaultDate ? `ออเดอร์รอบส่ง ${isoToThaiDate(defaultDate)}\n\n` : '');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   // [v0.11/B3] duplicate guard — server ตอบ duplicate:true → ถามยืนยันก่อนบันทึกซ้ำ

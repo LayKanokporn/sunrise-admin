@@ -1,7 +1,7 @@
 // [v0.2] Calendar Main Dashboard — month grid + summary + day detail
 // [v0.8] เพิ่ม filter chips + bulk select + customer profile
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, TrendingUp, Package, DollarSign, AlertCircle, Megaphone } from 'lucide-react';
 import { api } from '../lib/api';
 import { toast } from '../lib/toast';
@@ -16,6 +16,22 @@ import { Plus } from 'lucide-react';
 
 const dayHeaders = ['จ','อ','พ','พฤ','ศ','ส','อา'];
 const monthNamesTH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+// ISO week number (Mon-based)
+function getISOWeek(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const w1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - w1) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7);
+}
+// heat shading: เข้มตามจำนวนออเดอร์ต่อวัน
+function heatBg(count, max) {
+  if (!count || !max) return '';
+  const r = count / max;
+  if (r > 0.75) return 'bg-orange-100';
+  if (r > 0.4)  return 'bg-orange-50';
+  return 'bg-amber-50/50';
+}
 
 // [v0.7] FIX timezone bug — เดิมใช้ toISOString() แปลงเป็น UTC ทำให้วันที่ลด 1
 function fmtISO(d) {
@@ -70,8 +86,8 @@ export default function CalendarPage() {
   }, []);
   const [anchor, setAnchor] = useState(initialAnchor);
   const [picked, setPicked] = useState(fmtISO(today));
-  // [v0.5] modal state
-  const [showAdd, setShowAdd] = useState(false);
+  // [v0.5] modal state — false=ปิด | null=เปิดไม่ pre-fill | 'YYYY-MM-DD'=เปิด+pre-fill
+  const [addWithDate, setAddWithDate] = useState(false);
   // [v0.12/M3] มือถือ: day detail เป็น bottom sheet
   const [sheetOpen, setSheetOpen] = useState(false);
   const modals = useModals();
@@ -228,6 +244,30 @@ export default function CalendarPage() {
   }, [monthQ.data, year, month, tomorrowKey]);
   usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด → จัดเรียงใหม่ทันที
 
+  // maxDayCount สำหรับ heat shading
+  const maxDayCount = useMemo(() =>
+    Math.max(1, ...Object.values(byDate).map(d => d.count))
+  , [byDate]);
+
+  // แบ่ง cells เป็นแถว 7 วัน สำหรับเลขสัปดาห์
+  const calRows = useMemo(() => {
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+    return rows;
+  }, [cells]);
+
+  // [E2] keyboard nav: ←→ เปลี่ยนเดือน, Esc ปิด panel/sheet
+  useEffect(() => {
+    function onKey(e) {
+      if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+      if (e.key === 'ArrowLeft')  setAnchor(a => addMonths(a, -1));
+      if (e.key === 'ArrowRight') setAnchor(a => addMonths(a, 1));
+      if (e.key === 'Escape')     setSheetOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* [v0.4] KPI — โฟกัสที่ออเดอร์ที่ต้องทำ (ไม่เอายอดเงิน) */}
@@ -257,74 +297,110 @@ export default function CalendarPage() {
         <button onClick={() => setAnchor(addMonths(anchor, 1))} className="btn btn-ghost p-2"><ChevronRight size={20} /></button>
       </div>
 
-      {/* ── Day headers ── */}
-      <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-medium text-slate-500">
+      {/* ── Day headers + week col ── */}
+      <div className="grid grid-cols-[20px_repeat(7,1fr)] sm:grid-cols-[28px_repeat(7,1fr)] gap-1 sm:gap-2 text-center text-xs font-medium text-slate-500">
+        <div className="text-[8px] sm:text-[10px] text-slate-300 self-end pb-0.5">W</div>
         {dayHeaders.map((d) => <div key={d}>{d}</div>)}
       </div>
 
-      {/* ── Month grid ── [#swipe] ปัดเปลี่ยนเดือนบนมือถือ */}
-      <div className="grid grid-cols-7 gap-1 sm:gap-2" onTouchStart={gridTouchStart} onTouchEnd={gridTouchEnd}>
-        {cells.map((cell, i) => {
-          const info = byDate[cell.isoKey];
-          const isPicked = picked === cell.isoKey;
-          const isToday = cell.isoKey === todayKey;
-          const hasUrgent = info?.urgent > 0;
-
-          return (
-            <button
-              key={i}
-              onClick={() => { if (lpFired.current) { lpFired.current = false; return; } pickDate(cell.isoKey); }}
-              onPointerDown={(e) => startLongPress(cell.isoKey, e)}
-              onPointerUp={cancelLongPress}
-              onPointerLeave={cancelLongPress}
-              onPointerMove={cancelLongPress}
-              className={
-                // [v0.12/M2] มือถือ: ช่องเตี้ย (52px) เลขวัน + จำนวน + dot — ชื่อร้านดูใน detail
-                'rounded-lg p-1 sm:p-2 text-left min-h-[52px] sm:min-h-[110px] transition-all border ' +
-                (!cell.inMonth ? 'opacity-40 ' : '') +
-                (isToday ? 'bg-sunrise-50 ' : 'bg-white ') +
-                (isPicked ? 'ring-2 ring-sunrise-500 border-sunrise-500 ' : 'border-slate-200 hover:border-slate-300 ') +
-                (hasUrgent ? 'border-red-300 ' : '')
-              }>
-              <div className="flex items-center justify-between">
-                <span className={'text-xs sm:text-sm font-semibold ' + (isToday ? 'text-sunrise-600' : 'text-slate-700')}>
-                  {cell.date.getDate()}
-                </span>
-                {hasUrgent && <span className="text-[10px] sm:text-xs">🚨</span>}
-              </div>
-              {info && (
-                <div className="mt-0.5 sm:mt-1 space-y-0.5">
-                  {/* มือถือ: badge จำนวน / จอใหญ่: ข้อความเต็ม */}
-                  <div className="sm:hidden flex justify-center">
-                    <span className={'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] font-bold ' +
-                      (hasUrgent ? 'bg-red-100 text-red-600' : 'bg-sunrise-100 text-sunrise-700')}>
-                      {info.count}
+      {/* ── Month grid ── row-based + week numbers + heat + [#swipe] */}
+      <div className="space-y-1 sm:space-y-2" onTouchStart={gridTouchStart} onTouchEnd={gridTouchEnd}>
+        {calRows.map((row, wi) => (
+          <div key={wi} className="grid grid-cols-[20px_repeat(7,1fr)] sm:grid-cols-[28px_repeat(7,1fr)] gap-1 sm:gap-2">
+            {/* เลขสัปดาห์ */}
+            <div className="text-[8px] sm:text-[10px] text-slate-300 text-center flex items-start pt-2">
+              {getISOWeek(row[0].date)}
+            </div>
+            {row.map((cell, ci) => {
+              const info = byDate[cell.isoKey];
+              const isPicked = picked === cell.isoKey;
+              const isToday = cell.isoKey === todayKey;
+              const isPast  = cell.inMonth && cell.isoKey < todayKey;
+              const hasUrgent  = info?.urgent > 0;
+              const hasPending = (info?.pending || 0) > 0 && !hasUrgent;
+              const isEmpty = !info && cell.inMonth;
+              return (
+                <button
+                  key={ci}
+                  onClick={() => {
+                    if (lpFired.current) { lpFired.current = false; return; }
+                    if (isEmpty) { setAddWithDate(cell.isoKey); }
+                    else { pickDate(cell.isoKey); }
+                  }}
+                  onPointerDown={(e) => startLongPress(cell.isoKey, e)}
+                  onPointerUp={cancelLongPress}
+                  onPointerLeave={cancelLongPress}
+                  onPointerMove={cancelLongPress}
+                  className={
+                    'rounded-lg p-1 sm:p-2 text-left min-h-[52px] sm:min-h-[110px] transition-all border ' +
+                    (!cell.inMonth ? 'opacity-25 pointer-events-none ' :
+                      isPast ? 'opacity-50 ' : '') +
+                    (isToday ? 'bg-sunrise-50 ' :
+                      isPast ? 'bg-slate-50 ' :
+                      info ? heatBg(info.count, maxDayCount) + ' ' : 'bg-white ') +
+                    (isPicked ? 'ring-2 ring-sunrise-500 border-sunrise-500 ' : 'border-slate-200 hover:border-slate-300 ') +
+                    (hasUrgent ? 'border-red-300 ' : '')
+                  }>
+                  <div className="flex items-center justify-between">
+                    <span className={'text-xs sm:text-sm font-semibold ' +
+                      (isToday ? 'text-sunrise-600' : isPast ? 'text-slate-400' : 'text-slate-700')}>
+                      {cell.date.getDate()}
                     </span>
+                    {hasUrgent && <span className="text-[10px] sm:text-xs">🚨</span>}
                   </div>
-                  <div className="hidden sm:block text-xs font-bold text-sunrise-600">
-                    {info.count} ออเดอร์
-                  </div>
-                  {/* ชื่อร้าน — จอใหญ่เท่านั้น */}
-                  <div className="hidden sm:block text-[10px] text-slate-600 space-y-0.5">
-                    {info.shops.slice(0, 2).map((s, i) => (
-                      <div key={i} className="truncate leading-tight">• {s}</div>
-                    ))}
-                    {info.shops.length > 2 && (
-                      <div className="text-slate-400 leading-tight">+{info.shops.length - 2} ร้าน</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </button>
-          );
-        })}
+                  {info && (
+                    <div className="mt-0.5 sm:mt-1 space-y-0.5">
+                      {/* มือถือ: badge สีตามสถานะ */}
+                      <div className="sm:hidden flex justify-center">
+                        <span className={'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] font-bold ' +
+                          (hasUrgent  ? 'bg-red-100 text-red-600' :
+                           hasPending ? 'bg-amber-100 text-amber-700' :
+                                        'bg-blue-100 text-blue-600')}>
+                          {info.count}
+                        </span>
+                      </div>
+                      <div className="hidden sm:block text-xs font-bold text-sunrise-600">
+                        {info.count} ออเดอร์
+                      </div>
+                      {/* ชื่อร้าน — จอใหญ่เท่านั้น โชว์ครบ */}
+                      <div className="hidden sm:block text-[10px] text-slate-600 space-y-0.5">
+                        {info.shops.slice(0, 5).map((s, si) => (
+                          <div key={si} className="truncate leading-tight">• {s}</div>
+                        ))}
+                        {info.shops.length > 5 && (
+                          <div className="text-slate-400 leading-tight">+{info.shops.length - 5} ร้าน</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* empty day hint — มือถือซ่อน */}
+                  {isEmpty && !isPast && (
+                    <div className="hidden sm:flex items-center justify-center h-full text-slate-200 text-lg mt-1">+</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
-      {/* [v0.4] Legend สั้นๆ */}
+      {/* [v0.4] Legend */}
       <div className="flex items-center gap-3 text-[10px] sm:text-xs text-slate-500 flex-wrap px-1">
-        <div className="sm:hidden">🚨 = มีด่วน • เลขในวงกลม = จำนวนออเดอร์ • กดวัน = ดูรายละเอียด</div>
-        <div className="hidden sm:block">🚨 = มีด่วน • เลขส้ม = จำนวน • ชื่อร้านใต้เลข • กดช่อง = ดูรายละเอียด</div>
+        <span className="sm:hidden">🚨 = มีด่วน</span>
+        <span className="sm:hidden flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-red-200"/> ด่วน</span>
+        <span className="sm:hidden flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-amber-200"/> ค้างชำระ</span>
+        <span className="sm:hidden flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-blue-200"/> ปกติ</span>
+        <span className="hidden sm:inline">🚨 = มีด่วน • เลขส้ม = จำนวน • ชื่อร้านใต้เลข • กดช่องว่าง = เพิ่มออเดอร์</span>
       </div>
+
+      {/* [C3] ปุ่มวันนี้ลอย — แสดงเมื่อ anchor ไม่ใช่เดือนปัจจุบัน */}
+      {(anchor.getFullYear() !== today.getFullYear() || anchor.getMonth() !== today.getMonth()) && (
+        <button
+          onClick={() => { setAnchor(new Date()); pickDate(todayKey); }}
+          className="fixed bottom-36 sm:bottom-20 right-4 sm:right-24 z-30 px-3 py-2 rounded-full bg-white border border-slate-300 shadow-md text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-1">
+          ↻ วันนี้
+        </button>
+      )}
 
       {/* [v0.12/M3] มือถือ: day detail เป็น bottom sheet */}
       {sheetOpen && (
@@ -476,8 +552,8 @@ export default function CalendarPage() {
 
       {/* [v0.5] Floating Add button — [M5] มือถือยกขึ้นพ้น bottom nav */}
       <button
-        onClick={() => setShowAdd(true)}
-        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-30 w-14 h-14 rounded-full bg-sunrise-500 text-white shadow-lg hover:bg-sunrise-600 flex items-center justify-center transition-transform hover:scale-110"
+        onClick={() => setAddWithDate(null)}
+        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-30 w-14 h-14 rounded-full bg-sunrise-500 text-white shadow-lg hover:bg-sunrise-600 flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
         aria-label="เพิ่มออเดอร์">
         <Plus size={28} />
       </button>
@@ -485,8 +561,13 @@ export default function CalendarPage() {
       {/* [v0.8] Bulk action bar */}
       <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
 
-      {/* AddOrder modal — เฉพาะตัวนี้ ไม่ใช่ global */}
-      {showAdd && <AddOrderModal onClose={() => setShowAdd(false)} />}
+      {/* AddOrder modal — เฉพาะตัวนี้ ไม่ใช่ global — addWithDate: ISO date สำหรับ pre-fill */}
+      {addWithDate !== false && (
+        <AddOrderModal
+          onClose={() => setAddWithDate(false)}
+          defaultDate={addWithDate || undefined}
+        />
+      )}
     </div>
   );
 }
@@ -530,7 +611,7 @@ function StatCard({ icon, label, value, color, onClick, delta, spark, progress, 
       {/* value + label */}
       <div className="font-bold text-base sm:text-lg leading-tight">{value}</div>
       <div className="flex items-end justify-between gap-1">
-        <div className="text-[10px] sm:text-xs text-slate-500 truncate">{label}</div>
+        <div className="text-[10px] sm:text-xs text-slate-500 leading-tight">{label}</div>
         {spark && <Sparkline data={spark} color={color} />}
       </div>
       {/* progress bar */}
