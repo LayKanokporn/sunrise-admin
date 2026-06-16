@@ -324,6 +324,9 @@ export default function CalendarPage() {
       {/* [TrendChart] กราฟยอดขาย/ออเดอร์ 14 วันล่าสุด — toggle เปิด-ปิด */}
       <TrendChart orders={monthQ.data?.orders || []} today={today} />
 
+      {/* [RevenueRange] ยอดขายรวมตามช่วงวันที่เลือกเอง (เช่น 1-15) */}
+      <RevenueRange today={today} />
+
       {/* [W4] split layout: ปฏิทินซ้าย + รายการวันขวา บน lg+ */}
       <div className="lg:flex lg:gap-6 lg:items-start">
       <div className="flex-1 min-w-0 space-y-4">
@@ -839,6 +842,92 @@ function TrendChart({ orders, today }) {
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+// [RevenueRange] ยอดขายรวมตามช่วงวันที่เลือกเอง — ดึง api.orders({from,to}) แล้วรวมเอง
+function RevenueRange({ today }) {
+  const y = today.getFullYear(), m = today.getMonth();
+  const firstOfMonth = fmtISO(new Date(y, m, 1));
+  const endOfMonth   = fmtISO(new Date(y, m + 1, 0));
+  const [from, setFrom] = useState(firstOfMonth);
+  const [to, setTo]     = useState(fmtISO(today));
+
+  // preset: เปลี่ยน from/to ทีเดียว
+  const setRange = (f, t) => { setFrom(f); setTo(t); };
+  const presets = [
+    { label: '1-15',      f: fmtISO(new Date(y, m, 1)),  t: fmtISO(new Date(y, m, 15)) },
+    { label: '16-สิ้นเดือน', f: fmtISO(new Date(y, m, 16)), t: endOfMonth },
+    { label: 'ทั้งเดือน',   f: firstOfMonth, t: endOfMonth },
+    { label: 'เดือนก่อน',   f: fmtISO(new Date(y, m - 1, 1)), t: fmtISO(new Date(y, m, 0)) }
+  ];
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['revenue-range', from, to],
+    queryFn: () => api.orders({ from, to }),
+    enabled: !!from && !!to && from <= to,
+    staleTime: 60_000
+  });
+
+  const stats = useMemo(() => {
+    const valid = (data?.orders || []).filter(o => o.status !== '❌ ยกเลิก');
+    const revenue = valid.reduce((s, o) => s + (o.grandTotal || 0), 0);
+    const paid = valid.filter(o => (o.paymentStatus || '').toLowerCase() === 'paid');
+    const paidRevenue = paid.reduce((s, o) => s + (o.grandTotal || 0), 0);
+    return {
+      revenue,
+      count: valid.length,
+      aov: valid.length ? Math.round(revenue / valid.length) : 0,
+      paidRevenue,
+      unpaidRevenue: revenue - paidRevenue
+    };
+  }, [data]);
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="font-bold text-sm flex items-center gap-1">
+          <DollarSign size={16} className="text-emerald-600" /> ยอดขายตามช่วงวันที่
+        </div>
+        <div className="flex gap-1 flex-wrap">
+          {presets.map(p => (
+            <button key={p.label} onClick={() => setRange(p.f, p.t)}
+              className={'px-2 py-0.5 rounded text-xs ' +
+                (from === p.f && to === p.t ? 'bg-sunrise-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)}
+          className="px-2 py-1.5 rounded-lg border border-slate-300 text-sm" />
+        <span className="text-slate-400 text-sm">ถึง</span>
+        <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)}
+          className="px-2 py-1.5 rounded-lg border border-slate-300 text-sm" />
+        {isFetching && <span className="text-xs text-slate-400">⏳</span>}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="bg-emerald-50 rounded-lg p-2.5">
+          <div className="text-[10px] text-slate-500">ยอดขายรวม</div>
+          <div className="font-bold text-lg text-emerald-600">฿{stats.revenue.toLocaleString()}</div>
+        </div>
+        <div className="bg-slate-50 rounded-lg p-2.5">
+          <div className="text-[10px] text-slate-500">ออเดอร์</div>
+          <div className="font-bold text-lg">{stats.count} ใบ</div>
+        </div>
+        <div className="bg-slate-50 rounded-lg p-2.5">
+          <div className="text-[10px] text-slate-500">เฉลี่ย/ใบ</div>
+          <div className="font-bold text-lg">฿{stats.aov.toLocaleString()}</div>
+        </div>
+        <div className="bg-amber-50 rounded-lg p-2.5">
+          <div className="text-[10px] text-slate-500">ค้างชำระ</div>
+          <div className="font-bold text-lg text-amber-600">฿{stats.unpaidRevenue.toLocaleString()}</div>
+        </div>
+      </div>
     </div>
   );
 }
