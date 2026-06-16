@@ -9,7 +9,7 @@ import { useModals } from '../App';
 import OrderCard from '../components/OrderCard';
 import AddOrderModal from '../components/AddOrderModal';
 import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
-import { usePrefs, sortPinned } from '../lib/prefs';
+import { prefs, usePrefs, sortPinned } from '../lib/prefs';
 import BulkActionBar from '../components/BulkActionBar';
 import { SkeletonOrderCard, SkeletonStatCard } from '../components/Skeleton';
 import { Plus } from 'lucide-react';
@@ -206,12 +206,15 @@ export default function CalendarPage() {
     const d = new Date(today); d.setDate(d.getDate() + 1); return fmtISO(d);
   }, [today]);
 
+  const p = usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด → จัดเรียงใหม่ทันที + [#goal] salesGoal
+
   const monthStats = useMemo(() => {
     const all = (monthQ.data?.orders || []);
     const orders = all.filter(o => {
       const d = parseISO(o.deliveryDateISO);
       return d.getFullYear() === year && d.getMonth() === month;
     });
+    const validOrders = orders.filter(o => o.status !== '❌ ยกเลิก');
 
     // 7 วันล่าสุด vs 7 วันก่อนหน้า (week comparison)
     const last7 = [], prev7 = [];
@@ -238,14 +241,35 @@ export default function CalendarPage() {
     const pending = orders.filter(o => (o.paymentStatus || '').toLowerCase() !== 'paid').length;
     const count   = orders.length;
 
+    // [AOV] ยอดขายรวม / AOV ของเดือน (ไม่รวมออเดอร์ที่ยกเลิก)
+    const revenue = sumArr(validOrders.map(o => o.grandTotal || 0));
+    const aov = validOrders.length > 0 ? Math.round(revenue / validOrders.length) : 0;
+
+    // [Channel] LINE vs FB
+    const lineCount = validOrders.filter(o => (o.channel || '').toUpperCase() === 'LINE').length;
+    const fbCount   = validOrders.filter(o => (o.channel || '').toUpperCase() === 'FB').length;
+
+    // [Pacing] เป้าเดือน vs เวลาผ่าน — เฉพาะเดือนปัจจุบัน (เดือนอื่นไม่มีความหมาย)
+    let pacing = null;
+    if (p.salesGoal > 0 && year === today.getFullYear() && month === today.getMonth()) {
+      const dayOfMonth = today.getDate();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const timeElapsedPct = Math.round((dayOfMonth / daysInMonth) * 100);
+      const goalProgressPct = Math.round((revenue / p.salesGoal) * 100);
+      const projectedClose = Math.round((revenue / dayOfMonth) * daysInMonth);
+      pacing = {
+        timeElapsedPct, goalProgressPct, projectedClose,
+        isBehind: goalProgressPct < timeElapsedPct
+      };
+    }
+
     return {
       count, urgent: orders.filter(o => o.isUrgent).length, pending,
       tomorrow: all.filter(o => o.deliveryDateISO === tomorrowKey).length,
       sparkOrders, sparkUrgent, sparkPending,
-      weekDelta
+      weekDelta, revenue, aov, lineCount, fbCount, pacing
     };
-  }, [monthQ.data, year, month, tomorrowKey]);
-  usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด → จัดเรียงใหม่ทันที
+  }, [monthQ.data, year, month, tomorrowKey, p.salesGoal]);
 
   // maxDayCount สำหรับ heat shading
   const maxDayCount = useMemo(() =>
@@ -289,6 +313,16 @@ export default function CalendarPage() {
           progress={{ value: monthStats.pending, total: monthStats.count }}
           onClick={() => toggleFilter('pending')} />
       </div>
+
+      {/* [AOV/Pacing/Channel] แถวที่ 2 — ยอดขาย insight */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <AovCard aov={monthStats.aov} revenue={monthStats.revenue} />
+        <PacingCard pacing={monthStats.pacing} goal={p.salesGoal} />
+        <ChannelCard line={monthStats.lineCount} fb={monthStats.fbCount} />
+      </div>
+
+      {/* [TrendChart] กราฟยอดขาย/ออเดอร์ 14 วันล่าสุด — toggle เปิด-ปิด */}
+      <TrendChart orders={monthQ.data?.orders || []} today={today} />
 
       {/* [W4] split layout: ปฏิทินซ้าย + รายการวันขวา บน lg+ */}
       <div className="lg:flex lg:gap-6 lg:items-start">
@@ -662,3 +696,149 @@ function StatCard({ icon, label, value, color, onClick, delta, spark, progress, 
   );
 }
 
+// [AOV] ยอดขายเฉลี่ยต่อออเดอร์ของเดือน
+function AovCard({ aov, revenue }) {
+  return (
+    <div className="card !p-2 sm:!p-3 flex flex-col">
+      <div className="text-[10px] sm:text-xs text-slate-500 mb-1">AOV เฉลี่ย/ออเดอร์</div>
+      <div className="font-bold text-base sm:text-lg text-emerald-600">฿{aov.toLocaleString()}</div>
+      <div className="text-[10px] text-slate-400 truncate">ยอดรวมเดือน ฿{revenue.toLocaleString()}</div>
+    </div>
+  );
+}
+
+// [Pacing] เป้าเดือน vs เวลาผ่าน — เก็บ goal ใน localStorage (ไม่มี backend field)
+function PacingCard({ pacing, goal }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState('');
+
+  if (!goal) {
+    return (
+      <div className="card !p-2 sm:!p-3 flex flex-col">
+        <div className="text-[10px] sm:text-xs text-slate-500 mb-1">เป้าเดือน</div>
+        {editing ? (
+          <div className="flex gap-1">
+            <input type="number" value={val} onChange={(e) => setVal(e.target.value)}
+              placeholder="เช่น 300000" autoFocus
+              className="w-full px-1.5 py-1 text-xs rounded border border-slate-300 min-w-0" />
+            <button onClick={() => { prefs.setSalesGoal(val); setEditing(false); }}
+              className="text-xs px-2 bg-sunrise-500 text-white rounded shrink-0">ตั้ง</button>
+          </div>
+        ) : (
+          <button onClick={() => setEditing(true)} className="text-xs text-sunrise-600 underline text-left">+ ตั้งเป้า</button>
+        )}
+      </div>
+    );
+  }
+
+  if (!pacing) {
+    return (
+      <div className="card !p-2 sm:!p-3 flex flex-col">
+        <div className="text-[10px] sm:text-xs text-slate-500 mb-1">เป้าเดือน</div>
+        <div className="text-xs text-slate-400">ดูได้เฉพาะเดือนปัจจุบัน</div>
+      </div>
+    );
+  }
+
+  const { timeElapsedPct, goalProgressPct, projectedClose, isBehind } = pacing;
+  return (
+    <div className="card !p-2 sm:!p-3 flex flex-col relative">
+      <button onClick={() => prefs.setSalesGoal(0)} title="ล้างเป้า"
+        className="absolute top-1.5 right-1.5 text-[10px] text-slate-300 hover:text-slate-500">✕</button>
+      <div className="text-[10px] sm:text-xs text-slate-500 mb-1 flex items-center gap-1">
+        เป้าเดือน {isBehind ? <span className="text-amber-500">⚠</span> : <span className="text-emerald-500">✓</span>}
+      </div>
+      <div className="font-bold text-base sm:text-lg">{goalProgressPct}%</div>
+      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1 relative">
+        <div className="h-full rounded-full bg-sunrise-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, goalProgressPct))}%` }} />
+        <div className="absolute top-0 h-full w-px bg-slate-500" style={{ left: `${Math.min(100, timeElapsedPct)}%` }} />
+      </div>
+      <div className="text-[10px] text-slate-400 mt-1 truncate">เวลาผ่าน {timeElapsedPct}% • คาดปิด ฿{projectedClose.toLocaleString()}</div>
+    </div>
+  );
+}
+
+// [Channel] สัดส่วน LINE vs FB ของเดือน
+function ChannelCard({ line, fb }) {
+  const total = line + fb;
+  const linePct = total > 0 ? Math.round((line / total) * 100) : 0;
+  return (
+    <div className="card !p-2 sm:!p-3 flex flex-col">
+      <div className="text-[10px] sm:text-xs text-slate-500 mb-1">ช่องทาง</div>
+      <div className="flex items-baseline gap-1 font-bold text-sm">
+        <span className="text-emerald-600">{line}</span><span className="text-[10px] text-slate-400 font-normal">LINE</span>
+        <span className="text-slate-300 font-normal">/</span>
+        <span className="text-blue-600">{fb}</span><span className="text-[10px] text-slate-400 font-normal">FB</span>
+      </div>
+      {total > 0 && (
+        <div className="h-1.5 rounded-full overflow-hidden mt-1.5 flex">
+          <div className="bg-emerald-400 h-full" style={{ width: `${linePct}%` }} />
+          <div className="bg-blue-400 h-full" style={{ width: `${100 - linePct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// [TrendChart] กราฟแท่งยอดขาย/ออเดอร์ 14 วันล่าสุด — toggle เปิด-ปิดประหยัดพื้นที่
+function TrendChart({ orders, today }) {
+  const [open, setOpen] = useState(false);
+  const [metric, setMetric] = useState('revenue'); // revenue | count
+
+  const days = useMemo(() => {
+    const arr = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dayOrders = orders.filter(o => o.deliveryDateISO === iso && o.status !== '❌ ยกเลิก');
+      arr.push({
+        iso, label: d.getDate(),
+        revenue: dayOrders.reduce((s, o) => s + (o.grandTotal || 0), 0),
+        count: dayOrders.length
+      });
+    }
+    return arr;
+  }, [orders, today]);
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-xs text-slate-500 underline hover:text-slate-700 px-1">
+        📊 ดูกราฟเทรนด์ 14 วัน
+      </button>
+    );
+  }
+
+  const max = Math.max(1, ...days.map(d => d[metric]));
+  const W = 600, H = 100, barW = W / days.length;
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <div className="font-bold text-sm">เทรนด์ 14 วันล่าสุด</div>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 text-xs">
+            <button onClick={() => setMetric('revenue')}
+              className={'px-2 py-0.5 rounded ' + (metric === 'revenue' ? 'bg-sunrise-500 text-white' : 'bg-slate-100 text-slate-600')}>ยอดขาย</button>
+            <button onClick={() => setMetric('count')}
+              className={'px-2 py-0.5 rounded ' + (metric === 'count' ? 'bg-sunrise-500 text-white' : 'bg-slate-100 text-slate-600')}>ออเดอร์</button>
+          </div>
+          <button onClick={() => setOpen(false)} className="text-xs text-slate-400 hover:text-slate-600">ปิด ✕</button>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H + 20}`} className="w-full" style={{ height: 120 }}>
+        {days.map((d, i) => {
+          const h = (d[metric] / max) * H;
+          const x = i * barW + barW * 0.15;
+          const w = barW * 0.7;
+          const isToday = i === days.length - 1;
+          return (
+            <g key={d.iso}>
+              <rect x={x} y={H - h} width={w} height={h} rx={2} fill={isToday ? '#f97316' : '#fdba74'} />
+              <text x={x + w / 2} y={H + 14} fontSize="9" textAnchor="middle" fill="#94a3b8">{d.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}

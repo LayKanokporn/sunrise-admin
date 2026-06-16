@@ -11,11 +11,13 @@ function load() {
     const p = raw ? JSON.parse(raw) : {};
     return {
       density: p.density === 'compact' ? 'compact' : 'comfortable',
-      pins: Array.isArray(p.pins) ? p.pins : []
+      pins: Array.isArray(p.pins) ? p.pins : [],
+      // [#goal] เป้ายอดขายต่อเดือน — ไม่มี backend field เก็บใน localStorage
+      salesGoal: Number(p.salesGoal) > 0 ? Number(p.salesGoal) : 0
     };
   } catch (e) {
     console.log(`[${new Date().toISOString()}] [WARN] [prefs/load] ${e.message}`);
-    return { density: 'comfortable', pins: [] };
+    return { density: 'comfortable', pins: [], salesGoal: 0 };
   }
 }
 
@@ -47,7 +49,8 @@ export const prefs = {
     set({ pins });
     return !has;
   },
-  isPinned: (orderId) => state.pins.includes(orderId)
+  isPinned: (orderId) => state.pins.includes(orderId),
+  setSalesGoal: (n) => set({ salesGoal: Math.max(0, Number(n) || 0) })
 };
 
 // React hook — re-render เมื่อ prefs เปลี่ยน
