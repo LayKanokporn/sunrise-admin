@@ -17,10 +17,12 @@ import { usePrefs } from './lib/prefs';
 // [v0.13/S1] ปฏิทินเป็นหน้าแรก → โหลด static / แท็บที่เหลือ lazy (โหลดเมื่อกดเข้า)
 //   ลด JS bundle แรกที่ต้อง parse ตอนเปิดเว็บ
 import CalendarPage from './pages/Calendar';
+import AskKaija from './components/AskKaija';
 const Kanban     = lazy(() => import('./pages/Kanban'));
 const Timeline   = lazy(() => import('./pages/Timeline'));
 const Production = lazy(() => import('./pages/Production'));
 const AuditLog   = lazy(() => import('./pages/AuditLog'));
+const KPI        = lazy(() => import('./pages/KPI'));
 
 const ModalCtx = createContext(null);
 export const useModals = () => useContext(ModalCtx);
@@ -63,7 +65,7 @@ function AppInner() {
     const params = new URLSearchParams(window.location.search);
 
     const reqTab = params.get('tab');
-    if (reqTab && ['calendar','kanban','timeline','production','audit'].includes(reqTab)) {
+    if (reqTab && ['calendar','kanban','timeline','production','audit','kpi'].includes(reqTab)) {
       setTab(reqTab);
     }
 
@@ -160,6 +162,7 @@ function AppInner() {
               {tab === 'timeline'   && <Timeline />}
               {tab === 'production' && <Production />}
               {tab === 'audit'      && <AuditLog />}
+              {tab === 'kpi'        && <KPI />}
             </Suspense>
           )}
         </main>
@@ -177,6 +180,9 @@ function AppInner() {
             onPickOrder={(o) => setSelectedOrder(o)}
           />
         )}
+
+        {/* [#drq] ผู้ช่วยนำทางลอย "ถามไก่จ๋า" */}
+        <AskKaija onNavigate={setTab} onOpenSearch={() => setShowSearch(true)} />
 
         {/* [v0.9] global toast */}
         <ToastContainer />
