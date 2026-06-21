@@ -69,5 +69,9 @@ export const api = USE_MOCK ? mock : {
   newcount:   (since)           => call('newcount', { since }),
   audit:      (limit)           => call('audit', { limit }),
   // [#orderlog] timeline การแก้ไขของออเดอร์เดียว
-  orderlog:   (orderId)         => call('orderlog', { orderId })
+  orderlog:   (orderId)         => call('orderlog', { orderId }),
+  // [#team] gamified team board
+  team:          (month)        => call('team', { month }),
+  teamHeartbeat: (name)         => call('teamheartbeat', { uid:_currentUid, name: name||'' }),
+  teamProfile:   (fields)       => call('teamprofile',  { uid:_currentUid, ...fields })
 };

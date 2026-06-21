@@ -1,4 +1,4 @@
-import { Calendar, LayoutGrid, ChefHat, History, Clock, BarChart3 } from 'lucide-react';
+import { Calendar, LayoutGrid, ChefHat, History, Clock, BarChart3, Trophy } from 'lucide-react';
 
 // [v0.2] ปฏิทิน → Kanban → ผลิต → [v0.9] ประวัติ → [#kpi] KPI
 // [#nav] จัดกลุ่มแท็บ (จอใหญ่) — แทนแถวเดียว พอแท็บเยอะจะหาง่ายขึ้น
@@ -13,6 +13,9 @@ const groups = [
   ]},
   { label: 'วิเคราะห์', items: [
     { key: 'kpi', label: 'KPI', Icon: BarChart3 }
+  ]},
+  { label: 'ทีม', items: [
+    { key: 'team', label: 'ทีม', Icon: Trophy }
   ]},
   { label: 'ประวัติ', items: [
     { key: 'timeline', label: 'ไทม์ไลน์', Icon: Clock },

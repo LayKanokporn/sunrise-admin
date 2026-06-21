@@ -23,6 +23,7 @@ const Timeline   = lazy(() => import('./pages/Timeline'));
 const Production = lazy(() => import('./pages/Production'));
 const AuditLog   = lazy(() => import('./pages/AuditLog'));
 const KPI        = lazy(() => import('./pages/KPI'));
+const Team       = lazy(() => import('./pages/Team'));
 
 const ModalCtx = createContext(null);
 export const useModals = () => useContext(ModalCtx);
@@ -65,7 +66,7 @@ function AppInner() {
     const params = new URLSearchParams(window.location.search);
 
     const reqTab = params.get('tab');
-    if (reqTab && ['calendar','kanban','timeline','production','audit','kpi'].includes(reqTab)) {
+    if (reqTab && ['calendar','kanban','timeline','production','audit','kpi','team'].includes(reqTab)) {
       setTab(reqTab);
     }
 
@@ -87,6 +88,16 @@ function AppInner() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [isAdmin]);
+
+  // [#team] heartbeat ทุก 4 นาที เพื่อให้คนอื่นเห็นว่าออนไลน์
+  //   ส่ง displayName จาก LINE profile เพื่อ auto-register เป็นชื่อจริงครั้งแรก
+  useEffect(() => {
+    if (!isAdmin) return;
+    const ping = () => api.teamHeartbeat(profile?.displayName).catch(() => {});
+    ping();
+    const id = setInterval(ping, 4 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [isAdmin, profile?.displayName]);
 
   if (loading) {
     return (
@@ -163,6 +174,7 @@ function AppInner() {
               {tab === 'production' && <Production />}
               {tab === 'audit'      && <AuditLog />}
               {tab === 'kpi'        && <KPI />}
+              {tab === 'team'       && <Team />}
             </Suspense>
           )}
         </main>
