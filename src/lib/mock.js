@@ -274,5 +274,16 @@ export const mock = {
       { at: fmtTH(today) + ' 10:45:30', action: 'paid',    by: '📱 เว็บ (พี่หม่อน)' },
       { at: fmtTH(today) + ' 09:12:00', action: 'update',  by: '💬 LINE' }
     ]
-  })
+  }),
+  // [#team] mock
+  team: () => Promise.resolve({
+    ok: true, onlineCount: 2,
+    members: [
+      { userId:'u1', name:'พี่หม่อน', role:'แอดมิน', avatar:'👩‍🍳', online:true, lastActiveAt:Date.now(), points:12, breakdown:{created:8,delivered:3,urgent_ontime:1} },
+      { userId:'u2', name:'น้องมิ้นท์', role:'คนส่ง', avatar:'🛵', online:true, lastActiveAt:Date.now()-60000, points:8, breakdown:{created:3,delivered:5} },
+      { userId:'u3', name:'พี่แจ็ค', role:'แม่ครัว', avatar:'👨‍🍳', online:false, lastActiveAt:Date.now()-3600000, points:5, breakdown:{created:5} }
+    ]
+  }),
+  teamHeartbeat: () => Promise.resolve({ ok:true }),
+  teamProfile: () => Promise.resolve({ ok:true })
 };

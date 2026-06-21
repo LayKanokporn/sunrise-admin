@@ -184,18 +184,16 @@ export default function CalendarPage() {
     };
   }, [monthQ.data, monthQ.isLoading, picked]);
 
-  // [v0.4] group by ISO date — โฟกัสที่ร้านไหน วันไหน (ไม่เอายอดเงิน mini-bar)
+  // [v0.4] group by ISO date — เก็บ orders จริงเพื่อแสดง mini card ใน grid
   const byDate = useMemo(() => {
     const m = {};
     (monthQ.data?.orders || []).forEach((o) => {
       const k = o.deliveryDateISO || '';
-      if (!m[k]) m[k] = { count:0, urgent:0, pending:0, shops:[] };
+      if (!m[k]) m[k] = { count:0, urgent:0, pending:0, orders:[] };
       m[k].count++;
       if (o.isUrgent) m[k].urgent++;
       if ((o.paymentStatus || '').toLowerCase() !== 'paid') m[k].pending++;
-      // เก็บชื่อร้านสั้นๆ (ตัด FB:/Line OA prefix ออก)
-      const name = String(o.customerName||'').replace(/^(FB|Line OA)\s*[:\-]?\s*/i,'').trim();
-      if (name && !m[k].shops.includes(name)) m[k].shops.push(name);
+      m[k].orders.push(o);
     });
     return m;
   }, [monthQ.data]);
@@ -355,102 +353,130 @@ export default function CalendarPage() {
         <button onClick={() => setAnchor(addMonths(anchor, 1))} className="btn btn-ghost p-2"><ChevronRight size={20} /></button>
       </div>
 
-      {/* ── Day headers + week col ── */}
-      <div className="grid grid-cols-[20px_repeat(7,1fr)] sm:grid-cols-[28px_repeat(7,1fr)] gap-1 sm:gap-2 text-center text-xs font-medium text-slate-500">
-        <div className="text-[8px] sm:text-[10px] text-slate-300 self-end pb-0.5">W</div>
-        {dayHeaders.map((d) => <div key={d}>{d}</div>)}
+      {/* ── Summary bar ── สรุปจำนวนออเดอร์แยกตามสถานะ */}
+      {monthQ.data && (() => {
+        const all = (monthQ.data.orders || []).filter(o => {
+          const d = parseISO(o.deliveryDateISO);
+          return d.getFullYear() === year && d.getMonth() === month;
+        });
+        const active = all.filter(o => o.status !== '❌ ยกเลิก');
+        const urgent = active.filter(o => o.isUrgent).length;
+        const paid = active.filter(o => (o.paymentStatus||'').toLowerCase() === 'paid').length;
+        const pending = active.filter(o => (o.paymentStatus||'').toLowerCase() !== 'paid').length;
+        const cancelled = all.length - active.length;
+        const completed = active.filter(o => o.status === '✅ ส่งแล้ว').length;
+        return (
+          <div className="card !py-2 !px-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="font-semibold text-slate-700">รวม {active.length} ออเดอร์</span>
+            <span className="text-slate-300">|</span>
+            {urgent > 0 && <span className="text-red-600 font-medium">🚨 {urgent} ด่วน</span>}
+            {completed > 0 && <span className="text-emerald-600 font-medium">✅ {completed} ส่งแล้ว</span>}
+            {paid > 0 && <span className="text-green-600 font-medium">💰 {paid} ชำระแล้ว</span>}
+            {pending > 0 && <span className="text-amber-600 font-medium">⏳ {pending} ค้างชำระ</span>}
+            {cancelled > 0 && <span className="text-slate-400">❌ {cancelled} ยกเลิก</span>}
+          </div>
+        );
+      })()}
+
+      {/* ── Day headers ── */}
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5 text-center text-xs font-medium text-slate-500">
+        {dayHeaders.map((d) => <div key={d} className="py-1">{d}</div>)}
       </div>
 
-      {/* ── Month grid ── single grid → ทุกช่องสูงเท่ากัน + week col + heat + [#swipe] */}
+      {/* ── Month grid ── CONT-style: mini order cards inside each cell */}
       <div
-        className="grid grid-cols-[20px_repeat(7,1fr)] sm:grid-cols-[28px_repeat(7,1fr)] gap-1 sm:gap-2"
-        style={{ gridAutoRows: '1fr' }}
+        className="grid grid-cols-7 gap-1 sm:gap-1.5"
+        style={{ gridAutoRows: 'minmax(80px, auto)' }}
         onTouchStart={gridTouchStart} onTouchEnd={gridTouchEnd}>
-        {calRows.map((row, wi) => {
-          const weekNum = getISOWeek(row[0].date);
-          return [
-            // เลขสัปดาห์
-            <div key={`w${wi}`} className="text-[8px] sm:text-[10px] text-slate-300 text-center flex items-start justify-center pt-2">
-              {weekNum}
-            </div>,
-            // 7 วันในสัปดาห์
-            ...row.map((cell, ci) => {
-              const info = byDate[cell.isoKey];
-              const isPicked = picked === cell.isoKey;
-              const isToday = cell.isoKey === todayKey;
-              const isPast  = cell.inMonth && cell.isoKey < todayKey;
-              const hasUrgent  = info?.urgent > 0;
-              const hasPending = (info?.pending || 0) > 0 && !hasUrgent;
-              const isEmpty = !info && cell.inMonth;
-              return (
-                <button
-                  key={`${wi}-${ci}`}
-                  onClick={() => {
-                    if (lpFired.current) { lpFired.current = false; return; }
-                    if (isEmpty) { setAddWithDate(cell.isoKey); }
-                    else { pickDate(cell.isoKey); }
-                  }}
-                  onPointerDown={(e) => startLongPress(cell.isoKey, e)}
-                  onPointerUp={cancelLongPress}
-                  onPointerLeave={cancelLongPress}
-                  onPointerMove={cancelLongPress}
-                  className={
-                    'rounded-lg p-1 sm:p-2 text-left overflow-hidden transition-all border w-full ' +
-                    (!cell.inMonth ? 'opacity-25 pointer-events-none ' :
-                      isPast ? 'opacity-50 ' : '') +
-                    (isToday ? 'bg-sunrise-50 ' :
-                      isPast ? 'bg-slate-50 ' :
-                      info ? heatBg(info.count, maxDayCount) + ' ' : 'bg-white ') +
-                    (isPicked ? 'ring-2 ring-sunrise-500 border-sunrise-500 ' : 'border-slate-200 hover:border-slate-300 ') +
-                    (hasUrgent ? 'border-red-300 ' : '')
-                  }>
-                  <div className="flex items-center justify-between">
-                    <span className={'text-xs sm:text-sm font-semibold ' +
-                      (isToday ? 'text-sunrise-600' : isPast ? 'text-slate-400' : 'text-slate-700')}>
-                      {cell.date.getDate()}
-                    </span>
-                    {hasUrgent && <span className="text-[10px] sm:text-xs">🚨</span>}
-                  </div>
+        {calRows.map((row, wi) =>
+          row.map((cell, ci) => {
+            const info = byDate[cell.isoKey];
+            const isPicked = picked === cell.isoKey;
+            const isToday = cell.isoKey === todayKey;
+            const isPast  = cell.inMonth && cell.isoKey < todayKey;
+            const hasUrgent  = info?.urgent > 0;
+            const isEmpty = !info && cell.inMonth;
+            return (
+              <button
+                key={`${wi}-${ci}`}
+                onClick={() => {
+                  if (lpFired.current) { lpFired.current = false; return; }
+                  if (isEmpty) { setAddWithDate(cell.isoKey); }
+                  else { pickDate(cell.isoKey); }
+                }}
+                onPointerDown={(e) => startLongPress(cell.isoKey, e)}
+                onPointerUp={cancelLongPress}
+                onPointerLeave={cancelLongPress}
+                onPointerMove={cancelLongPress}
+                className={
+                  'rounded-lg p-1.5 sm:p-2 text-left overflow-hidden transition-all border w-full flex flex-col ' +
+                  (!cell.inMonth ? 'opacity-20 pointer-events-none ' :
+                    isPast ? 'opacity-60 ' : '') +
+                  (isToday ? 'bg-sunrise-50/50 ' : 'bg-white ') +
+                  (isPicked ? 'ring-2 ring-sunrise-500 border-sunrise-500 ' : 'border-slate-200 hover:border-slate-300 ') +
+                  (hasUrgent ? 'border-red-300 ' : '')
+                }>
+                {/* วันที่ */}
+                <div className="flex items-center justify-between mb-1">
+                  <span className={'text-xs sm:text-sm font-semibold ' +
+                    (isToday ? 'text-sunrise-600' : isPast ? 'text-slate-400' : 'text-slate-700')}>
+                    {cell.date.getDate()}
+                  </span>
                   {info && (
-                    <div className="mt-0.5 sm:mt-1 space-y-0.5">
-                      <div className="sm:hidden flex justify-center">
-                        <span className={'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] font-bold ' +
-                          (hasUrgent  ? 'bg-red-100 text-red-600' :
-                           hasPending ? 'bg-amber-100 text-amber-700' :
-                                        'bg-blue-100 text-blue-600')}>
-                          {info.count}
-                        </span>
-                      </div>
-                      <div className="hidden sm:block text-xs font-bold text-sunrise-600">
-                        {info.count} ออเดอร์
-                      </div>
-                      <div className="hidden sm:block text-[10px] text-slate-600 space-y-0.5">
-                        {info.shops.slice(0, 5).map((s, si) => (
-                          <div key={si} className="truncate leading-tight">• {s}</div>
-                        ))}
-                        {info.shops.length > 5 && (
-                          <div className="text-slate-400 leading-tight">+{info.shops.length - 5} ร้าน</div>
-                        )}
-                      </div>
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 font-medium">{info.count}</span>
+                  )}
+                </div>
+                {/* mini order cards */}
+                {info && (
+                  <div className="flex-1 space-y-0.5 overflow-hidden">
+                    {/* มือถือ: แสดง badge จำนวน */}
+                    <div className="sm:hidden flex justify-center">
+                      <span className={'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] font-bold ' +
+                        (hasUrgent ? 'bg-red-100 text-red-600' :
+                         info.pending > 0 ? 'bg-amber-100 text-amber-700' :
+                                            'bg-emerald-100 text-emerald-600')}>
+                        {info.count}
+                      </span>
                     </div>
-                  )}
-                  {isEmpty && !isPast && (
-                    <div className="hidden sm:flex items-center justify-center pt-2 text-slate-200 text-lg">+</div>
-                  )}
-                </button>
-              );
-            })
-          ];
-        })}
+                    {/* desktop: mini cards with left border */}
+                    <div className="hidden sm:block space-y-0.5">
+                      {info.orders.slice(0, 4).map((o) => {
+                        const borderColor = o.isUrgent ? 'border-l-red-500' :
+                          o.status === '✅ ส่งแล้ว' ? 'border-l-emerald-500' :
+                          o.status === '❌ ยกเลิก' ? 'border-l-slate-300' :
+                          (o.paymentStatus||'').toLowerCase() === 'paid' ? 'border-l-green-400' :
+                          'border-l-amber-400';
+                        const name = String(o.customerName||'').replace(/^(FB|Line OA)\s*[:\-]?\s*/i,'').trim();
+                        return (
+                          <div key={o.orderId}
+                            className={'border-l-[3px] pl-1.5 pr-0.5 py-0.5 rounded-r bg-slate-50/80 text-[10px] leading-tight truncate ' + borderColor}>
+                            <span className="text-slate-400 mr-1">{o.deliveryTime || ''}</span>
+                            <span className="text-slate-700">{name || o.orderId}</span>
+                          </div>
+                        );
+                      })}
+                      {info.orders.length > 4 && (
+                        <div className="text-[9px] text-slate-400 pl-2">+{info.orders.length - 4} อีก</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {isEmpty && !isPast && (
+                  <div className="hidden sm:flex flex-1 items-center justify-center text-slate-200 text-lg">+</div>
+                )}
+              </button>
+            );
+          })
+        )}
       </div>
 
-      {/* [v0.4] Legend */}
+      {/* Legend */}
       <div className="flex items-center gap-3 text-[10px] sm:text-xs text-slate-500 flex-wrap px-1">
-        <span className="sm:hidden">🚨 = มีด่วน</span>
-        <span className="sm:hidden flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-red-200"/> ด่วน</span>
-        <span className="sm:hidden flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-amber-200"/> ค้างชำระ</span>
-        <span className="sm:hidden flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-blue-200"/> ปกติ</span>
-        <span className="hidden sm:inline">🚨 = มีด่วน • เลขส้ม = จำนวน • ชื่อร้านใต้เลข • กดช่องว่าง = เพิ่มออเดอร์</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-red-500 rounded"/> ด่วน</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-amber-400 rounded"/> ค้างชำระ</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-green-400 rounded"/> ชำระแล้ว</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-emerald-500 rounded"/> ส่งแล้ว</span>
+        <span className="hidden sm:inline text-slate-400">• กดช่องว่าง = เพิ่มออเดอร์</span>
       </div>
       </div>{/* end LEFT column */}
 

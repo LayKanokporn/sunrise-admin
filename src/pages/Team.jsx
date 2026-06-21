@@ -10,6 +10,28 @@ import { useAuth } from '../lib/auth';
 const monthNamesTH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 const AVATAR_OPTIONS = ['🐔','👩‍🍳','👨‍🍳','🛵','🚗','💼','🎂','🍰','🧁','☕','🌸','⭐','🦄','🐱','🐶'];
 
+function getMedal(pts) {
+  if (pts >= 30) return '🥇';
+  if (pts >= 15) return '🥈';
+  if (pts >= 5)  return '🥉';
+  return '';
+}
+
+function getMedalLabel(pts) {
+  if (pts >= 30) return { medal:'🥇', label:'Gold', color:'text-amber-500' };
+  if (pts >= 15) return { medal:'🥈', label:'Silver', color:'text-slate-400' };
+  if (pts >= 5)  return { medal:'🥉', label:'Bronze', color:'text-amber-700' };
+  return null;
+}
+
+const ACTION_LABEL = {
+  created:      'สร้างออเดอร์',
+  delivered:    'ส่งแล้ว',
+  urgent_ontime:'ส่งด่วนทัน',
+  paid_fast:    'รับเงินเร็ว',
+  eod_clean:    'ไม่มีค้างข้ามวัน',
+};
+
 function fmtAgo(ms) {
   if (!ms) return '—';
   const diff = Date.now() - ms;
@@ -71,6 +93,32 @@ export default function Team() {
         </div>
       </div>
 
+      {/* medal progress — แสดงว่าตัวเองอยู่ระดับไหน เหลืออีกเท่าไหร่ */}
+      {me && (() => {
+        const thresholds = [{ pts:5, medal:'🥉', label:'Bronze' }, { pts:15, medal:'🥈', label:'Silver' }, { pts:30, medal:'🥇', label:'Gold' }];
+        const current = [...thresholds].reverse().find(t => me.points >= t.pts);
+        const next = thresholds.find(t => me.points < t.pts);
+        if (!next) return (
+          <div className="card !py-2 !px-3 flex items-center gap-2 text-sm">
+            <span className="text-xl">🥇</span>
+            <div><span className="font-semibold text-amber-500">Gold</span> <span className="text-slate-500 text-xs">สูงสุดแล้ว! {me.points} pts</span></div>
+          </div>
+        );
+        const prev = current ? current.pts : 0;
+        const pct = Math.round(((me.points - prev) / (next.pts - prev)) * 100);
+        return (
+          <div className="card !py-2 !px-3">
+            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+              <span>{current ? <><span className="mr-1">{current.medal}</span>{current.label}</> : 'ยังไม่มีเหรียญ'}</span>
+              <span className="font-medium text-slate-700">{me.points}/{next.pts} pts → {next.medal} {next.label}</span>
+            </div>
+            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: pct+'%' }} />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* my profile editor */}
       {me && (
         <div className="card">
@@ -120,11 +168,17 @@ export default function Team() {
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="font-bold text-sunrise-600">{m.points} <span className="text-[10px] text-slate-400 font-normal">pts</span></div>
+                <div className="flex items-center gap-1 justify-end">
+                  {getMedal(m.points) && (
+                    <span className="text-base" title={getMedalLabel(m.points)?.label}>{getMedal(m.points)}</span>
+                  )}
+                  <span className="font-bold text-sunrise-600">{m.points} <span className="text-[10px] text-slate-400 font-normal">pts</span></span>
+                </div>
                 <div className="text-[10px] text-slate-400">
-                  {m.breakdown?.created ? `+${m.breakdown.created} สร้าง` : ''}
-                  {m.breakdown?.delivered ? ` · +${m.breakdown.delivered} ส่ง` : ''}
-                  {m.breakdown?.urgent_ontime ? ` · +${m.breakdown.urgent_ontime} ด่วน` : ''}
+                  {m.breakdown && Object.entries(m.breakdown)
+                    .filter(([, v]) => v > 0)
+                    .map(([k, v]) => `+${v} ${ACTION_LABEL[k] || k}`)
+                    .join(' · ')}
                 </div>
               </div>
             </div>
@@ -134,11 +188,17 @@ export default function Team() {
 
       {/* scoring rules */}
       <div className="card bg-slate-50">
-        <div className="font-medium text-xs text-slate-600 mb-1">📌 กติกาแต้ม</div>
-        <div className="text-xs text-slate-500 space-y-0.5">
-          <div>• +1 แต้ม / สร้างออเดอร์ใหม่</div>
-          <div>• +1 แต้ม / mark "ส่งแล้ว"</div>
-          <div>• +2 แต้ม / ส่งออเดอร์ด่วนทันเวลา (แทน +1 ปกติ)</div>
+        <div className="font-medium text-xs text-slate-600 mb-2">📌 กติกาแต้ม</div>
+        <div className="text-xs text-slate-500 space-y-1">
+          <div>• +1 สร้างออเดอร์ใหม่</div>
+          <div>• +1 mark "ส่งแล้ว"</div>
+          <div>• +2 ส่งออเดอร์ด่วนทันเวลา (แทน +1 ปกติ)</div>
+          <div>• +1 mark ชำระภายใน 1 ชม. หลังสร้าง</div>
+          <div>• +1 ไม่มีออเดอร์ค้างชำระข้ามวัน (23:00)</div>
+        </div>
+        <div className="mt-3 pt-2 border-t border-slate-200 text-xs text-slate-400 space-y-0.5">
+          <div className="font-medium text-slate-500">🎖️ เหรียญประจำเดือน</div>
+          <div>🥉 Bronze — 5 pts+ | 🥈 Silver — 15 pts+ | 🥇 Gold — 30 pts+</div>
         </div>
       </div>
     </div>
