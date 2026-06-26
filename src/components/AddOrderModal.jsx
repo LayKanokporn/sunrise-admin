@@ -71,7 +71,7 @@ export default function AddOrderModal({ onClose, defaultDate }) {
       if (r.ok) {
         setResult({ type:'success', msg:`✅ บันทึก ${r.orderId} | ${r.customer} | ${r.items} รายการ | ฿${r.total.toLocaleString()}` });
         setText('');
-        qc.invalidateQueries();
+        qc.invalidateQueries({ refetchType: 'all' });
         setTimeout(() => { onClose(); }, 1800);
       } else if (r.duplicate) {
         setDupConfirm({ msg: r.error, existingOrderId: r.existingOrderId });
