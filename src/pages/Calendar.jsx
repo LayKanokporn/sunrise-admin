@@ -171,7 +171,9 @@ export default function CalendarPage() {
   // ดึงออเดอร์ทั้ง grid (Mon ของสัปดาห์แรก → Sun ของสัปดาห์สุดท้าย)
   const monthQ = useQuery({
     queryKey: ['orders-month', fmtISO(first), fmtISO(last)],
-    queryFn: () => api.orders({ from: fmtISO(first), to: fmtISO(last) })
+    queryFn: () => api.orders({ from: fmtISO(first), to: fmtISO(last) }),
+    refetchOnWindowFocus: true,
+    staleTime: 30_000
   });
 
   // [v0.13/P1] วันที่เลือกดึงจาก monthQ ตรง ๆ (ออเดอร์อยู่ในกริดอยู่แล้ว ไม่ต้องยิง network ซ้ำ)
