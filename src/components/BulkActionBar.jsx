@@ -32,7 +32,7 @@ export default function BulkActionBar({ selectedIds, onClear }) {
     }));
     setBusy(false);
     setConfirm(null);
-    qc.invalidateQueries();
+    qc.invalidateQueries({ refetchType: 'all' });
     if (fail === 0) toast.success(`${confirm.label} สำเร็จ ${ok} ใบ`);
     else toast.error(`สำเร็จ ${ok}, ล้มเหลว ${fail}`);
     onClear();

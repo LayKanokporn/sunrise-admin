@@ -44,13 +44,13 @@ export function useOrderActions() {
           // กดเลิกทำ → patch กลับ + call undo API
           patchOrderInCache(orderId, undo.patch);
           try { await undo.apiCall(); } catch(e) { toast.error('เลิกทำไม่สำเร็จ'); }
-          qc.invalidateQueries();
+          qc.invalidateQueries({ refetchType: 'all' });
         });
       } else {
         toast.success(successMsg);
       }
       // refetch เงียบๆ เพื่อ sync ตัวเลขจริง
-      setTimeout(() => qc.invalidateQueries(), 300);
+      setTimeout(() => qc.invalidateQueries({ refetchType: 'all' }), 300);
       return res;
     } catch (e) {
       rollback(snapshots);                                 // ④ fail → คืนค่าเดิม

@@ -37,7 +37,7 @@ export function usePullToRefresh() {
         if (p >= THRESHOLD) {
           console.log(`[${new Date().toISOString()}] [INFO] [pullToRefresh] triggered — invalidating queries`);
           setRefreshing(true);
-          qc.invalidateQueries().finally(() => setTimeout(() => setRefreshing(false), 600));
+          qc.invalidateQueries({ refetchType: 'all' }).finally(() => setTimeout(() => setRefreshing(false), 600));
         }
         return 0;
       });

@@ -70,7 +70,7 @@ export default function OrderDetailModal({ order, onClose }) {
     return true;
   }
 
-  const refetchAll = () => qc.invalidateQueries();
+  const refetchAll = () => qc.invalidateQueries({ refetchType: 'all' });
   const flash = (text, type='success') => {
     setMsg({ text, type });
     setTimeout(() => setMsg(null), 2500);

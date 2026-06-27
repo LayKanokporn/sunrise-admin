@@ -16,7 +16,7 @@ export default function OfflineBanner() {
       console.log(`[${new Date().toISOString()}] [INFO] [OfflineBanner] network back online — refetching`);
       setOnline(true);
       setJustBack(true);
-      qc.invalidateQueries();
+      qc.invalidateQueries({ refetchType: 'all' });
       setTimeout(() => setJustBack(false), 3000);
     };
     window.addEventListener('offline', goOffline);
