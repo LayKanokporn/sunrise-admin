@@ -317,7 +317,7 @@ function normalizeDateText_(value) {
     return pad2(id)+"/"+pad2(im)+"/"+iy;
   }
   // dd/MM/yy หรือ dd/MM/yyyy
-  var slashM = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  var slashM = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
   if (slashM) {
     var sd = parseInt(slashM[1],10), sm = parseInt(slashM[2],10), sy = parseInt(slashM[3],10);
     // [FIX] 2-digit BE year: 69 = 2569 (ไม่ใช่ CE 69 → +2543=2612)
