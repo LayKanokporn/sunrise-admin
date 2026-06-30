@@ -9833,3 +9833,100 @@ function runBuildCurrentMonthIndex() {
   var mk = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
   buildMonthIndex_(mk);
 }
+
+// ============================================================
+// fixWrongGrandTotal — หา+แก้ออเดอร์ที่ grandTotal ผิด (< MIN_PLAUSIBLE_TOTAL)
+// วิธีใช้: รันใน GAS editor → ดู Log → ยืนยันแล้วรัน fixWrongGrandTotal(false)
+//   dry=true  → แสดงผลอย่างเดียว ไม่แก้ Sheet
+//   dry=false → แก้จริง
+// ============================================================
+var MIN_PLAUSIBLE_TOTAL = 50; // grandTotal < 50฿ = น่าสงสัย (คือ qty แทนราคา)
+
+function fixWrongGrandTotal(dry) {
+  if (dry === undefined) dry = true; // safe default: dry run
+  var sheet = getSheet();
+  var map   = getHeaderMap_();
+  var rows  = getOrderRows(function(){ return true; });
+
+  // group by orderId
+  var byOrder = {};
+  rows.forEach(function(r) {
+    var id = String(r.orderId||"").trim();
+    if (!id) return;
+    if (!byOrder[id]) byOrder[id] = [];
+    byOrder[id].push(r);
+  });
+
+  var suspects = [], fixed = [], errors = [];
+
+  Object.keys(byOrder).forEach(function(orderId) {
+    var group   = byOrder[orderId];
+    var main    = group.find(function(r){ return toNumber(r.grandTotal) > 0; }) || group[0];
+    var current = toNumber(main.grandTotal);
+    if (current <= 0 || current >= MIN_PLAUSIBLE_TOTAL) return; // ดูปกติ
+
+    // คำนวณใหม่จาก itemTotal + deliveryFee
+    var fee    = toNumber(group[0].deliveryFee);
+    var food   = group.reduce(function(s, r){ return s + toNumber(r.itemTotal); }, 0);
+    var recalc = food + fee;
+
+    var info = {
+      orderId:    orderId,
+      customer:   String(main.customerName||main.tableName||"?"),
+      deliveryDate: String(main.deliveryDate||""),
+      current:    current,
+      recalc:     recalc,
+      itemCount:  group.filter(function(r){ return r.menuName; }).length
+    };
+    suspects.push(info);
+
+    if (recalc < MIN_PLAUSIBLE_TOTAL) {
+      // recalc ก็ยังต่ำ → itemTotal ไม่มีข้อมูล → log แยก
+      Logger.log("[WARN] fixWrongGrandTotal | orderId="+orderId+" | ลูกค้า="+info.customer
+        +" | current="+current+" | recalc="+recalc+" → ข้ามเพราะ recalc ก็ยังต่ำ (itemTotal อาจว่าง)");
+      errors.push(info);
+      return;
+    }
+
+    Logger.log("[INFO] fixWrongGrandTotal | orderId="+orderId+" | ลูกค้า="+info.customer
+      +" | วันส่ง="+info.deliveryDate+" | grandTotal: "+current+" → "+recalc
+      +(dry ? " [DRY RUN]" : " [FIXED]"));
+
+    if (!dry) {
+      try {
+        var nowTs = getTimestampTH();
+        group.forEach(function(r) {
+          if (map.grandTotal    > 0) sheet.getRange(r.rowNumber, map.grandTotal).setValue(recalc);
+          if (map.lastUpdatedAt > 0) sheet.getRange(r.rowNumber, map.lastUpdatedAt).setValue(nowTs);
+          if (map.lastUpdatedBy > 0) sheet.getRange(r.rowNumber, map.lastUpdatedBy).setValue("fix-script");
+        });
+        fixed.push(info);
+      } catch(e) {
+        Logger.log("[ERROR] fixWrongGrandTotal | orderId="+orderId+" | "+e.message);
+        errors.push(info);
+      }
+    }
+  });
+
+  // สรุป
+  Logger.log("=== fixWrongGrandTotal สรุป ==="
+    +"\n  ตรวจ: "+Object.keys(byOrder).length+" orders"
+    +"\n  น่าสงสัย: "+suspects.length+" orders"
+    +(dry
+      ? "\n  [DRY RUN] ยังไม่แก้ — รัน fixWrongGrandTotal(false) เพื่อแก้จริง"
+      : "\n  แก้แล้ว: "+fixed.length+" | ข้าม/error: "+errors.length)
+  );
+
+  // invalidate month index ถ้าแก้จริง
+  if (!dry && fixed.length > 0) {
+    clearSheetCache();
+    var mk = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
+    invalidateMonthIndex_(mk);
+    Logger.log("[INFO] fixWrongGrandTotal | invalidated month index "+mk);
+  }
+}
+
+// Shortcut: dry run ดูผลก่อน
+function previewWrongGrandTotal() { fixWrongGrandTotal(true); }
+// Shortcut: แก้จริง
+function applyFixWrongGrandTotal() { fixWrongGrandTotal(false); }
