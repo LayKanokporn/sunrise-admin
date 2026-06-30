@@ -1250,7 +1250,7 @@ function parseLooseHeaderOrder_(text) {
     else { deliveryFee = toNumber(feeM[1]); }
   }
 
-  var totalM   = normalized.match(/รวม\s*([\d,]+)\s*฿?/i);
+  var totalM   = normalized.match(/รวม(?:ทั้งหมด)?\s*[:：]?\s*([\d,]+)\s*฿/i);
   var items    = parseItemsFlexible_(normalized);
   var grandTotal = totalM ? toNumber(totalM[1]) : calculateOrderTotal_(items, deliveryFee);
 
@@ -1305,7 +1305,7 @@ function parseManualSummaryOrder_(text) {
     else deliveryFee = toNumber(feeM[1]);
   }
 
-  var totalM = normalized.match(/รวม\s*([\d,]+)\s*฿?/i);
+  var totalM = normalized.match(/รวม(?:ทั้งหมด)?\s*[:：]?\s*([\d,]+)\s*฿/i);
   var items  = parseItemsFlexible_(normalized);
   var grandTotal = totalM ? toNumber(totalM[1]) : calculateOrderTotal_(items, deliveryFee);
 
@@ -1422,7 +1422,7 @@ function parsePaymentAddressOrder_(text) {
     });
 
     // grand total รับ "รวม: 258" + "รวมทั้งหมด: 258"
-    var totalM = normalized.match(/รวม(?:ทั้งหมด)?\s*[:：]?\s*([\d,]+)\s*฿?/i);
+    var totalM = normalized.match(/รวม(?:ทั้งหมด)?\s*[:：]?\s*([\d,]+)\s*฿/i);
     var grandTotal = totalM ? toNumber(totalM[1]) : calculateOrderTotal_(items, 0);
     if (!grandTotal && items.length) grandTotal = calculateOrderTotal_(items, 0);
 
@@ -2646,7 +2646,7 @@ function parseChatStyleOrder_(text) {
   var slotRaw    = slotMatch ? slotMatch[1].replace(/@.*/,"").trim() : "";
   var deliverySlot = slotRaw ? (DELIVERY_SLOT_ALIAS[slotRaw] || slotRaw) : "";
 
-  var totalMatch = normalized.match(/รวม\s*([\d,]+)\s*฿?/i);
+  var totalMatch = normalized.match(/รวม(?:ทั้งหมด)?\s*[:：]?\s*([\d,]+)\s*฿/i);
   var feeMatch   = normalized.match(/ค่าส่ง\s*[:：]?\s*([\d,]+)/i);
   var deliveryFee = feeMatch ? toNumber(feeMatch[1]) : 0;
   var gt = totalMatch ? toNumber(totalMatch[1]) : calculateOrderTotal_(items, deliveryFee);
