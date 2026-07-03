@@ -25,6 +25,34 @@ const queryClient = new QueryClient({
   }
 });
 
+// [W1] Persist cache ลง localStorage — เปิดเว็บเห็นข้อมูลรอบก่อนทันที (0ms) แล้ว refetch เงียบๆ
+const PERSIST_KEY = 'sunrise_qcache_v1';
+const PERSIST_TTL = 10 * 60_000; // ใช้ cache เก่าได้สูงสุด 10 นาที
+try {
+  const saved = localStorage.getItem(PERSIST_KEY);
+  if (saved) {
+    const { ts, data } = JSON.parse(saved);
+    if (Date.now() - ts < PERSIST_TTL) {
+      Object.entries(data).forEach(([k, v]) => queryClient.setQueryData(JSON.parse(k), v));
+      console.log('[INFO] [main] cache restored from localStorage');
+    }
+  }
+} catch (_) {}
+
+let _persistTimer = null;
+queryClient.getQueryCache().subscribe(() => {
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    try {
+      const data = {};
+      queryClient.getQueryCache().getAll()
+        .filter(q => q.state.data != null)
+        .forEach(q => { data[JSON.stringify(q.queryKey)] = q.state.data; });
+      localStorage.setItem(PERSIST_KEY, JSON.stringify({ ts: Date.now(), data }));
+    } catch (_) {}
+  }, 500); // debounce — ไม่เขียนทุก micro-update
+});
+
 console.log('[INFO] [main] mounting app');
 
 createRoot(document.getElementById('root')).render(
