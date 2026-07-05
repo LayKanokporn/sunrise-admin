@@ -2941,6 +2941,10 @@ function updateOrderField_(orderId, fieldMap, updatedBy) {
     setCell(r.rowNumber,"lastUpdatedAt", nowTs);
     setCell(r.rowNumber,"lastUpdatedBy", updatedBy||"system");
   });
+  // [fix] แก้ deliveryFee โดยไม่ได้ส่ง grandTotal มาด้วย → ต้อง recompute กันยอดค้าง
+  if (fieldMap.deliveryFee !== undefined && fieldMap.grandTotal === undefined) {
+    recalcOrderGrandTotal_(orderId, updatedBy);
+  }
   clearSheetCache();
   try { invalidateMonthIndex_(rows[0].deliveryDate); } catch(_) {}
   return { ok:true, message:"อัปเดตแล้ว", orderId:orderId };
@@ -8644,7 +8648,7 @@ function _apiUpdate_(p) {
   if (p.time     !== undefined) fields.deliveryTime = String(p.time);
   if (p.date     !== undefined) fields.deliveryDate = _isoToTHDate_(String(p.date));
   if (p.location !== undefined) fields.location     = String(p.location);
-  if (p.fee      !== undefined) fields.deliveryFee  = toNumber(p.fee);
+  if (p.fee      !== undefined) fields.deliveryFee  = Math.max(0, toNumber(p.fee));
   if (p.channel  !== undefined) fields.channel      = String(p.channel);
   if (Object.keys(fields).length === 0) return _apiJson_({ok:false, error:"no fields"});
   var res = updateOrderField_(oid, fields, "liff:"+String(p.uid||"").substring(0,8));
@@ -8669,11 +8673,14 @@ function _apiMarkPaid_(p) {
     return _apiJson_({ok:okUn});
   }
   var slip = String(p.slip||"");
+  // [fix] compare-and-swap — เช็คว่า Paid ไปแล้วหรือยัง กันกดซ้ำแล้วให้แต้ม paid_fast ซ้ำ
+  var rowsBefore = findOrderRowsById_(oid);
+  var alreadyPaid = rowsBefore.length && String(rowsBefore[0].paymentStatus||"").trim().toLowerCase() === "paid";
   var ok = markOrderPaidWithSlip_(oid, slip, getTodayTH(),
     Utilities.formatDate(new Date(), TIMEZONE, "HH:mm"));
-  // [#team] +1 แต้ม mark ชำระภายใน 1 ชม. หลัง order สร้าง
+  // [#team] +1 แต้ม mark ชำระภายใน 1 ชม. หลัง order สร้าง (ครั้งแรกเท่านั้น)
   try {
-    if (ok && p.uid) {
+    if (ok && p.uid && !alreadyPaid) {
       var rows = findOrderRowsById_(oid);
       var main = rows.find(function(r){ return toNumber(r.grandTotal)>0; }) || rows[0];
       if (main && main.createdAt) {
@@ -8699,10 +8706,13 @@ function _apiStatus_(p) {
   var oid = String(p.orderId||"").trim();
   var st  = String(p.value||"").trim();
   if (!oid || !st) return _apiJson_({ok:false, error:"missing orderId/value"});
+  // [fix] compare-and-swap — เช็คว่า "ส่งแล้ว" ไปแล้วหรือยัง กันกดซ้ำแล้วให้แต้มซ้ำ
+  var rowsBeforeStatus = findOrderRowsById_(oid);
+  var alreadyDelivered = rowsBeforeStatus.length && /^(completed|ส่งแล้ว|delivered)$/i.test(String(rowsBeforeStatus[0].status||"").trim());
   var res = updateOrderStatus_(oid, st, "liff:"+String(p.uid||"").substring(0,8));
-  // [#team] +1 เมื่อ mark "ส่งแล้ว" (+2 ถ้า urgent ทันเวลา)
+  // [#team] +1 เมื่อ mark "ส่งแล้ว" (+2 ถ้า urgent ทันเวลา) — ครั้งแรกเท่านั้น
   try {
-    if (res && res.ok !== false && p.uid && /^(completed|ส่งแล้ว|delivered)$/i.test(st)) {
+    if (res && res.ok !== false && p.uid && !alreadyDelivered && /^(completed|ส่งแล้ว|delivered)$/i.test(st)) {
       var rows = findOrderRowsById_(oid);
       var main = rows.find(function(r){ return toNumber(r.grandTotal)>0; }) || rows[0];
       if (main) {
