@@ -2932,8 +2932,8 @@ function updateOrderField_(orderId, fieldMap, updatedBy) {
     if (fieldMap.deliveryType  !== undefined) setCell(r.rowNumber,"deliveryType",  fieldMap.deliveryType);
     if (fieldMap.deliveryTime  !== undefined) setCell(r.rowNumber,"deliveryTime",  formatTimeTH(fieldMap.deliveryTime));
     if (fieldMap.location      !== undefined) setCell(r.rowNumber,"location",      fieldMap.location);
-    if (fieldMap.deliveryFee   !== undefined) setCell(r.rowNumber,"deliveryFee",   toNumber(fieldMap.deliveryFee));
-    if (fieldMap.grandTotal    !== undefined) setCell(r.rowNumber,"grandTotal",    toNumber(fieldMap.grandTotal));
+    if (fieldMap.deliveryFee   !== undefined) setCell(r.rowNumber,"deliveryFee",   Math.max(0, toNumber(fieldMap.deliveryFee)));
+    if (fieldMap.grandTotal    !== undefined) setCell(r.rowNumber,"grandTotal",    Math.max(0, toNumber(fieldMap.grandTotal)));
     if (fieldMap.paymentStatus !== undefined) setCell(r.rowNumber,"paymentStatus", fieldMap.paymentStatus);
     if (fieldMap.note          !== undefined) setCell(r.rowNumber,"note",          fieldMap.note);
     if (fieldMap.status        !== undefined) setCell(r.rowNumber,"status",        fieldMap.status);
@@ -2942,10 +2942,12 @@ function updateOrderField_(orderId, fieldMap, updatedBy) {
     setCell(r.rowNumber,"lastUpdatedBy", updatedBy||"system");
   });
   // [fix] แก้ deliveryFee โดยไม่ได้ส่ง grandTotal มาด้วย → ต้อง recompute กันยอดค้าง
+  //   ต้อง clearSheetCache ก่อน recalc — ไม่งั้น recalc อ่าน fee เก่าจาก cache (ลำดับเดียวกับ removeItemFromOrder_)
+  clearSheetCache();
   if (fieldMap.deliveryFee !== undefined && fieldMap.grandTotal === undefined) {
     recalcOrderGrandTotal_(orderId, updatedBy);
+    clearSheetCache();
   }
-  clearSheetCache();
   try { invalidateMonthIndex_(rows[0].deliveryDate); } catch(_) {}
   return { ok:true, message:"อัปเดตแล้ว", orderId:orderId };
 }
@@ -9586,7 +9588,25 @@ function _readPointsBreakdownForMonth_(monthKey) {
 function _appendPointsRow_(uid, orderId, action, points) {
   var sh = getSpreadsheet_().getSheetByName(TEAM_POINTS_SHEET_NAME);
   if (!sh) { Logger.log("[WARN] TeamPoints sheet not found — run setupTeamSheets()"); return; }
+  // [fix] dedup ต่อ (uid, orderId, action) — กัน unmark→mark วนเก็บแต้มซ้ำ
+  //   ต้องรวม uid ด้วย: eod_clean ใช้ orderId ร่วมกัน (EOD-<วัน>) หลายคนต่อวัน
+  if (orderId && _hasPointsRowFor_(uid, orderId, action)) {
+    Logger.log("[INFO] _appendPointsRow_ skip duplicate | uid="+uid+" | order="+orderId+" | action="+action);
+    return;
+  }
   sh.appendRow([new Date(), String(uid||""), String(orderId||""), String(action||""), parseInt(points,10) || 0]);
+}
+
+// เช็คว่า uid นี้เคยได้แต้ม action นี้กับ order นี้ไปแล้วหรือยัง
+function _hasPointsRowFor_(uid, orderId, action) {
+  var sh = getSpreadsheet_().getSheetByName(TEAM_POINTS_SHEET_NAME);
+  if (!sh || sh.getLastRow() < 2) return false;
+  var data = sh.getRange(2, 2, sh.getLastRow()-1, 3).getValues(); // col B=uid, C=orderId, D=action
+  var u = String(uid||""), oid = String(orderId), act = String(action);
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]) === u && String(data[i][1]) === oid && String(data[i][2]) === act) return true;
+  }
+  return false;
 }
 
 // ──────────────────────────────────────────────────────────
