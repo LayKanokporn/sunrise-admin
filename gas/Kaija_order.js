@@ -2900,7 +2900,9 @@ function saveOrderToSheet_(data, rawText, updatedBy) {
 
   sheet.getRange(sheet.getLastRow()+1, 1, rows.length, rows[0].length).setValues(rows);
   clearSheetCache();
-  try { invalidateMonthIndex_(data.deliveryDate); } catch(_) {}
+  // [fix] rebuild ทันที (ไม่ใช่แค่ invalidate) — keepWarm_ auto-rebuild แค่เดือนปัจจุบัน
+  //   ถ้าบันทึกออเดอร์เดือนอื่น (เช่นย้อนหลัง/ล่วงหน้า) index จะค้างจนกว่ามีคน rebuild เอง
+  try { rebuildMonthIndexes_(data.deliveryDate); } catch(_) {}
   // mark hash กันซ้ำ
   if (rawText) markOrderHash_(rawText, data.orderId);
   return data.orderId;
@@ -2909,6 +2911,7 @@ function saveOrderToSheet_(data, rawText, updatedBy) {
 function updateOrderField_(orderId, fieldMap, updatedBy) {
   var rows = findOrderRowsById_(orderId);
   if (!rows||!rows.length) return { ok:false, message:"ไม่พบ Order ID" };
+  var oldDeliveryDate = rows[0].deliveryDate; // เก็บไว้ก่อนเขียนทับ — เผื่อ deliveryDate ถูกแก้ข้ามเดือน
   var sheet = getSheet();
   var map   = getHeaderMap_();
   var nowTs = getTimestampTH();
@@ -2942,7 +2945,12 @@ function updateOrderField_(orderId, fieldMap, updatedBy) {
     recalcOrderGrandTotal_(orderId, updatedBy);
     clearSheetCache();
   }
-  try { invalidateMonthIndex_(rows[0].deliveryDate); } catch(_) {}
+  // [fix] rebuild ทันที + rebuild ทั้งเดือนเก่าและเดือนใหม่ ถ้า deliveryDate ถูกแก้ข้ามเดือน
+  //   เดิมใช้ rows[0].deliveryDate (ค่าเก่า) อย่างเดียว → ถ้าย้ายออเดอร์ข้ามเดือน เดือนใหม่จะไม่ถูก rebuild
+  try {
+    rebuildMonthIndexes_(oldDeliveryDate);
+    if (fieldMap.deliveryDate !== undefined) rebuildMonthIndexes_(formatDateTH(fieldMap.deliveryDate));
+  } catch(_) {}
   return { ok:true, message:"อัปเดตแล้ว", orderId:orderId };
 }
 
@@ -9941,12 +9949,14 @@ function fixWrongGrandTotal(dry) {
       : "\n  แก้แล้ว: "+fixed.length+" | ข้าม/error: "+errors.length)
   );
 
-  // invalidate month index ถ้าแก้จริง
+  // [fix] rebuild index ของ "เดือนจริงของ order ที่แก้" — เดิม hardcode เดือนปัจจุบัน
+  //   ทำให้ order เดือนอื่น (ย้อนหลัง/ล่วงหน้า) แก้ยอดแล้วเว็บไม่อัปเดต
   if (!dry && fixed.length > 0) {
     clearSheetCache();
-    var mk = Utilities.formatDate(new Date(), TIMEZONE, "yyyy-MM");
-    invalidateMonthIndex_(mk);
-    Logger.log("[INFO] fixWrongGrandTotal | invalidated month index "+mk);
+    var monthsToRebuild = {};
+    fixed.forEach(function(f){ monthsToRebuild[f.deliveryDate] = true; });
+    Object.keys(monthsToRebuild).forEach(function(d){ rebuildMonthIndexes_(d); });
+    Logger.log("[INFO] fixWrongGrandTotal | rebuilt month index for: "+Object.keys(monthsToRebuild).join(", "));
   }
 }
 
