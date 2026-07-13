@@ -986,20 +986,14 @@ function resolveMenuAlias(rawName) {
   var key = String(rawName).trim().toLowerCase();
 
   // 1. ลองจาก Alias_Master sheet ก่อน (runtime + user-editable)
+  //   [fix] exact match เท่านั้น — เดิม partial match (indexOf===0) ทำให้ "มินิหัวใจ"
+  //   โดนเหมาเป็น "มินิเค้กรวมรส" เพราะขึ้นต้นด้วย alias "มินิ" — silent data corruption
   var sheetAlias = loadAliasMaster_();
   if (sheetAlias[key]) return sheetAlias[key];
-  // partial match จาก sheet
-  for (var sa in sheetAlias) {
-    if (key.indexOf(sa) === 0 && sa.length >= 2) return sheetAlias[sa];
-  }
 
-  // 2. ลองจาก MENU_ALIAS hardcode
+  // 2. ลองจาก MENU_ALIAS hardcode — exact match เท่านั้นเช่นกัน
   for (var alias in MENU_ALIAS) {
     if (alias.toLowerCase() === key) return MENU_ALIAS[alias];
-  }
-  // partial match
-  for (var alias2 in MENU_ALIAS) {
-    if (key.indexOf(alias2.toLowerCase()) === 0 && alias2.length >= 2) return MENU_ALIAS[alias2];
   }
 
   // 3. คืนชื่อเดิม
