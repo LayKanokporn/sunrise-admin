@@ -1811,6 +1811,7 @@ function rowArrayToObject_(row, rowNumber, map) {
     note:          v("note"),
     rawText:       v("rawText"),
     status:        normalizeStatus(v("status")),
+    kitchenStatus: v("kitchenStatus"),
     googleMap:     v("googleMap"),
     lastUpdatedAt: v("lastUpdatedAt"),
     lastUpdatedBy: v("lastUpdatedBy")
@@ -8654,6 +8655,7 @@ function _apiUpdate_(p) {
   if (p.location !== undefined) fields.location     = String(p.location);
   if (p.fee      !== undefined) fields.deliveryFee  = Math.max(0, toNumber(p.fee));
   if (p.channel  !== undefined) fields.channel      = String(p.channel);
+  if (p.note     !== undefined) fields.note         = String(p.note);
   if (Object.keys(fields).length === 0) return _apiJson_({ok:false, error:"no fields"});
   var res = updateOrderField_(oid, fields, "liff:"+String(p.uid||"").substring(0,8));
   return _apiJson_(res);

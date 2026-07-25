@@ -366,7 +366,7 @@ export default function CalendarPage() {
         const paid = active.filter(o => (o.paymentStatus||'').toLowerCase() === 'paid').length;
         const pending = active.filter(o => (o.paymentStatus||'').toLowerCase() !== 'paid').length;
         const cancelled = all.length - active.length;
-        const completed = active.filter(o => o.status === '✅ ส่งแล้ว').length;
+        const completed = active.filter(o => /completed|ส่งแล้ว|delivered/.test(o.status)).length;
         return (
           <div className="card !py-2 !px-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span className="font-semibold text-slate-700">รวม {active.length} ออเดอร์</span>
@@ -444,8 +444,8 @@ export default function CalendarPage() {
                     <div className="hidden sm:block space-y-0.5">
                       {info.orders.slice(0, 4).map((o) => {
                         const borderColor = o.isUrgent ? 'border-l-red-500' :
-                          o.status === '✅ ส่งแล้ว' ? 'border-l-emerald-500' :
-                          o.status === '❌ ยกเลิก' ? 'border-l-slate-300' :
+                          /completed|ส่งแล้ว|delivered/.test(o.status) ? 'border-l-emerald-500' :
+                          /cancelled|ยกเลิก/.test(o.status) ? 'border-l-slate-300' :
                           (o.paymentStatus||'').toLowerCase() === 'paid' ? 'border-l-green-400' :
                           'border-l-amber-400';
                         const name = String(o.customerName||'').replace(/^(FB|Line OA)\s*[:\-]?\s*/i,'').trim();

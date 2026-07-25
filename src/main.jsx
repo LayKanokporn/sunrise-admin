@@ -26,15 +26,20 @@ const queryClient = new QueryClient({
 });
 
 // [W1] Persist cache ลง localStorage — เปิดเว็บเห็นข้อมูลรอบก่อนทันที (0ms) แล้ว refetch เงียบๆ
+// TTL = 5 นาที (ยาวพอที่จะ instant-load หลังเปิดซ้ำ แต่ไม่นานจนข้อมูลเก่าค้าง)
+// หลัง restore → invalidate ทันที เพื่อให้ React Query refetch ใน background โดยไม่ block UI
 const PERSIST_KEY = 'sunrise_qcache_v1';
-const PERSIST_TTL = 10 * 60_000; // ใช้ cache เก่าได้สูงสุด 10 นาที
+const PERSIST_TTL = 5 * 60_000;
 try {
   const saved = localStorage.getItem(PERSIST_KEY);
   if (saved) {
     const { ts, data } = JSON.parse(saved);
     if (Date.now() - ts < PERSIST_TTL) {
       Object.entries(data).forEach(([k, v]) => queryClient.setQueryData(JSON.parse(k), v));
-      console.log('[INFO] [main] cache restored from localStorage');
+      // invalidate ทันที — ทำให้ UI แสดงข้อมูลเก่าก่อน (0ms) แล้ว refetch เงียบๆ ทันที
+      // ป้องกัน React Query คิดว่า data fresh (เพราะ setQueryData ตั้ง dataUpdatedAt = now)
+      setTimeout(() => queryClient.invalidateQueries(), 0);
+      console.log('[INFO] [main] cache restored + invalidated for background refetch');
     }
   }
 } catch (_) {}

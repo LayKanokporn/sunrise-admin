@@ -5,6 +5,7 @@ import { useState, useEffect, createContext, useContext, lazy, Suspense } from '
 import { useQueryClient } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './lib/auth';
 import { api } from './lib/api';
+import { toast } from './lib/toast';
 import TopBar from './components/TopBar';
 import TabNav from './components/TabNav';
 import SearchModal from './components/SearchModal';
@@ -81,7 +82,8 @@ function AppInner() {
       api.search(oid, 1).then((r) => {
         const o = (r.orders || []).find((x) => x.orderId === oid) || r.orders?.[0];
         if (o) setSelectedOrder(o);
-      }).catch(() => {});
+        else toast.error('ไม่พบออเดอร์ ' + oid);
+      }).catch(() => { toast.error('โหลดออเดอร์ไม่สำเร็จ กรุณาลองใหม่'); });
     }
 
     if (oid || month || reqTab) {

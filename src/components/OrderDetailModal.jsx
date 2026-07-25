@@ -106,7 +106,7 @@ export default function OrderDetailModal({ order, onClose }) {
   };
   const cancelOrder = () => {
     if (!confirm('ยกเลิกออเดอร์ ' + order.orderId + ' ใช่ไหม?')) return;
-    run('ยกเลิก', () => api.cancel(order.orderId)).then(() => onClose());
+    run('ยกเลิก', () => api.cancel(order.orderId)).then(() => onClose()).catch(() => {});
   };
   const addItem = () => {
     if (!newItem.menu || newItem.qty <= 0 || newItem.price <= 0) {
@@ -114,7 +114,7 @@ export default function OrderDetailModal({ order, onClose }) {
     }
     run('เพิ่มเมนู', () => api.addItem(order.orderId, newItem)).then(() => {
       setNewItem({ menu:'', qty:1, unit:'ชิ้น', price:0 });
-    });
+    }).catch(() => {});
   };
   const removeItem = (menuName) => {
     if (!confirm('ลบ "' + menuName + '" ใช่ไหม?')) return;

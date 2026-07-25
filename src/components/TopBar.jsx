@@ -1,5 +1,5 @@
 // [v0.8] TopBar — refresh + search + notification badge
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { RefreshCw, Search, Bell, Settings, Rows3, Rows2 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -25,6 +25,18 @@ export default function TopBar({ profile, onOpenSearch }) {
   });
 
   const newCount = newData?.count || 0;
+  const prevCount = useRef(0);
+
+  // auto-refresh order list ทันทีที่ newcount ตรวจเจอออเดอร์ใหม่
+  // ไม่ต้องรอให้ user กดระฆัง
+  useEffect(() => {
+    if (newCount > 0 && newCount !== prevCount.current) {
+      qc.invalidateQueries({ queryKey: ['orders'] });
+      qc.invalidateQueries({ queryKey: ['orders-month'] });
+      qc.invalidateQueries({ queryKey: ['production'] });
+    }
+    prevCount.current = newCount;
+  }, [newCount, qc]);
 
   const refetchAll = () => { if (navigator.vibrate) navigator.vibrate(8); qc.invalidateQueries({ refetchType: 'all' }); };
   const markAllSeen = () => {
