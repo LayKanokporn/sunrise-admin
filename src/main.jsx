@@ -71,10 +71,26 @@ createRoot(document.getElementById('root')).render(
 );
 
 // PWA — register service worker (production เท่านั้น)
+// auto-update: เช็คเวอร์ชันใหม่ทุกครั้งที่เปิดแอป เจอ build ใหม่ → reload ให้อัตโนมัติ
+//   เดิมไม่มีส่วนนี้ → SW เก่าคุมต่อไปเรื่อย ๆ ผู้ใช้ต้อง clear cache เองถึงเห็นของใหม่
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(() => console.log('[INFO] [main] service worker registered'))
+      .then((reg) => {
+        console.log('[INFO] [main] service worker registered');
+        reg.update();
+        reg.addEventListener('updatefound', () => {
+          const sw = reg.installing;
+          if (!sw) return;
+          sw.addEventListener('statechange', () => {
+            // installed + มี SW เดิมคุมอยู่ = มี build ใหม่จริง (ไม่ใช่การติดตั้งครั้งแรก)
+            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[INFO] [main] new build detected — reloading');
+              window.location.reload();
+            }
+          });
+        });
+      })
       .catch((e) => console.log('[WARN] [main] sw register failed: ' + e.message));
   });
 }

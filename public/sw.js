@@ -1,9 +1,15 @@
-// [v0.11/W2] Service Worker — cache static assets ให้เปิดซ้ำเร็ว
+// Service Worker — cache static assets ให้เปิดซ้ำเร็ว
 // นโยบาย:
-//   - static (js/css/font/icon): cache-first (เปิดเร็ว)
+//   - static (js/css/font/icon): cache-first — ชื่อไฟล์มี hash เปลี่ยน build = เปลี่ยนชื่อ
 //   - API (script.google.com): network-only — ข้อมูลออเดอร์ต้องสดเสมอ ห้าม cache
 //   - HTML: network-first fallback cache (offline ยังเปิด shell ได้)
-const CACHE = 'sunrise-admin-v1';
+//
+// BUILD ถูก stamp ตอน build โดย plugin ใน vite.config.js — เปลี่ยนค่าทุก deploy
+//   เดิมชื่อ cache fix ไว้ที่ 'sunrise-admin-v1' ตลอด → activate ไม่เคยลบอะไรเลย
+//   (filter k !== CACHE ไม่เคยเป็นจริง) + ตัวไฟล์ sw.js ไม่เคยเปลี่ยน byte
+//   → browser ไม่ re-install SW → ผู้ใช้ค้างอยู่กับ build เก่าถาวร
+const BUILD = '__BUILD_ID__';
+const CACHE = 'sunrise-admin-' + BUILD;
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/icon.svg', '/manifest.webmanifest'])));
