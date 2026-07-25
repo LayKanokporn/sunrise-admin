@@ -1,6 +1,4 @@
-// [v0.1] App shell — Auth + Tab nav + pages
-// [v0.8] Search + OrderDetail + CustomerProfile (global modals)
-// [v0.9] Toast + deep link + audit tab
+// App shell — Auth + Tab nav + pages
 import { useState, useEffect, createContext, useContext, lazy, Suspense } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -15,7 +13,7 @@ import ToastContainer from './components/ToastContainer';
 import OfflineBanner from './components/OfflineBanner';
 import { usePullToRefresh } from './lib/usePullToRefresh';
 import { usePrefs } from './lib/prefs';
-// [v0.13/S1] ปฏิทินเป็นหน้าแรก → โหลด static / แท็บที่เหลือ lazy (โหลดเมื่อกดเข้า)
+// ปฏิทินเป็นหน้าแรก → โหลด static / แท็บที่เหลือ lazy (โหลดเมื่อกดเข้า)
 //   ลด JS bundle แรกที่ต้อง parse ตอนเปิดเว็บ
 import CalendarPage from './pages/Calendar';
 import AskKaija from './components/AskKaija';
@@ -29,7 +27,7 @@ const Team       = lazy(() => import('./pages/Team'));
 const ModalCtx = createContext(null);
 export const useModals = () => useContext(ModalCtx);
 
-// [v0.11/W3] ตัวบอกสถานะ pull-to-refresh (มือถือ: ลากลงจากบนสุด)
+// ตัวบอกสถานะ pull-to-refresh (มือถือ: ลากลงจากบนสุด)
 function PullIndicator() {
   const { pull, refreshing, threshold } = usePullToRefresh();
   if (!pull && !refreshing) return null;
@@ -91,7 +89,7 @@ function AppInner() {
     }
   }, [isAdmin]);
 
-  // [#team] heartbeat ทุก 4 นาที เพื่อให้คนอื่นเห็นว่าออนไลน์
+  // heartbeat ทุก 4 นาที เพื่อให้คนอื่นเห็นว่าออนไลน์
   //   ส่ง displayName จาก LINE profile เพื่อ auto-register เป็นชื่อจริงครั้งแรก
   useEffect(() => {
     if (!isAdmin) return;
@@ -166,7 +164,7 @@ function AppInner() {
         <PullIndicator />
         <TopBar profile={profile} onOpenSearch={() => setShowSearch(true)} />
         <TabNav value={tab} onChange={setTab} />
-        {/* [#split] เมื่อมี order panel ค้างขวา (lg) → เว้นที่ไม่ให้ทับลิสต์ */}
+        {/* เมื่อมี order panel ค้างขวา (lg) → เว้นที่ไม่ให้ทับลิสต์ */}
         <main className={'max-w-7xl mx-auto p-4 transition-[padding] ' + (selectedOrder ? 'lg:pr-[440px]' : '')}>
           {tab === 'calendar' && <CalendarPage />}
           {tab !== 'calendar' && (
@@ -195,10 +193,10 @@ function AppInner() {
           />
         )}
 
-        {/* [#drq] ผู้ช่วยนำทางลอย "ถามไก่จ๋า" */}
+        {/* ผู้ช่วยนำทางลอย "ถามไก่จ๋า" */}
         <AskKaija onNavigate={setTab} onOpenSearch={() => setShowSearch(true)} />
 
-        {/* [v0.9] global toast */}
+        {/* global toast */}
         <ToastContainer />
       </div>
     </ModalCtx.Provider>

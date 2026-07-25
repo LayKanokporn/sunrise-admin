@@ -1,6 +1,6 @@
-// [v0.4] Mock data — ใช้เมื่อ VITE_USE_MOCK=true (พัฒนา UI โดยไม่ต้องต่อ API)
+// Mock data — ใช้เมื่อ VITE_USE_MOCK=true (พัฒนา UI โดยไม่ต้องต่อ API)
 const today = new Date();
-// [v0.7] FIX timezone — local date components
+// FIX timezone — local date components
 const fmtISO = (d) => {
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,'0');
@@ -109,7 +109,7 @@ export const mock = {
     });
   },
   ping: () => Promise.resolve({ ok:true, ts:new Date().toISOString() }),
-  // [v0.5] write — mock just mutates the in-memory array
+  // write — mock just mutates the in-memory array
   update: (orderId, fields) => {
     const o = ALL.find(x => x.orderId === orderId);
     if (!o) return Promise.resolve({ ok:false, error:'not found' });
@@ -162,7 +162,7 @@ export const mock = {
     if (i >= 0) { o.grandTotal -= o.items[i].itemTotal; o.items.splice(i,1); }
     return Promise.resolve({ ok:true, newGrand:o.grandTotal });
   },
-  // [v0.8] new mocks
+  // new mocks
   search: (q, limit) => {
     const qq = (q||'').toLowerCase();
     const rows = ALL.filter(o =>
@@ -225,7 +225,7 @@ export const mock = {
     });
     return Promise.resolve({ ok:true, orderId:id, customer:'(mock)', total:500, items:1 });
   },
-  // [v0.8] new endpoints
+  // new endpoints
   search: (q, limit) => {
     const ql = q.toLowerCase();
     const found = ALL.filter(o =>
@@ -266,7 +266,7 @@ export const mock = {
       updatedBy: i%3===0 ? '📱 เว็บ (U4e4f3fa)' : i%3===1 ? '💬 LINE' : '📄 Sheet'
     }))
   }),
-  // [#orderlog] timeline ราย order (mock)
+  // timeline ราย order (mock)
   orderlog: (orderId) => Promise.resolve({
     ok: true, orderId,
     entries: [
@@ -275,7 +275,7 @@ export const mock = {
       { at: fmtTH(today) + ' 09:12:00', action: 'update',  by: '💬 LINE' }
     ]
   }),
-  // [#team] mock
+  // mock
   team: () => Promise.resolve({
     ok: true, onlineCount: 2,
     members: [

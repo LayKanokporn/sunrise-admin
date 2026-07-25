@@ -1,6 +1,4 @@
-// [v0.1] API client — ห่อ fetch + log + error handling
-// [v0.4] รองรับ VITE_USE_MOCK=true → ใช้ mock data ไม่ต่อ API จริง
-// ตามมาตรฐาน CLAUDE.md Habit 5: log ทุก request
+// API client — ห่อ fetch + log + error handling
 
 import { mock } from './mock';
 
@@ -26,7 +24,7 @@ async function call(action, params = {}) {
     const res = await fetch(url.toString(), { method: 'GET' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    // [v0.11/B3] duplicate ไม่ใช่ error — ส่งกลับให้ UI ถามยืนยัน
+    // duplicate ไม่ใช่ error — ส่งกลับให้ UI ถามยืนยัน
     if (!json.ok && !json.duplicate) throw new Error(json.error || 'API returned ok=false');
     log('TRACE', action, `${Math.round(performance.now()-t0)}ms`);
     return json;
@@ -38,7 +36,7 @@ async function call(action, params = {}) {
 
 if (USE_MOCK) console.log('[INFO] [api] MOCK MODE — ไม่ต่อ API จริง');
 
-// [v0.5] เก็บ uid ของ admin ปัจจุบัน — write APIs ต้องใช้
+// เก็บ uid ของ admin ปัจจุบัน — write APIs ต้องใช้
 let _currentUid = '';
 export function setAuthUid(uid) { _currentUid = uid || ''; }
 
@@ -54,7 +52,7 @@ export const api = USE_MOCK ? mock : {
   paid:       (orderId, slip)   => call('paid',   { uid:_currentUid, orderId, slip:slip||'', on:1 }),
   unpaid:     (orderId)         => call('paid',   { uid:_currentUid, orderId, on:0 }),
   cancel:     (orderId)         => call('cancel', { uid:_currentUid, orderId }),
-  // [v0.13] ประกาศเข้ากลุ่ม LINE — 1 ออเดอร์ / รายการทั้งวัน
+  // ประกาศเข้ากลุ่ม LINE — 1 ออเดอร์ / รายการทั้งวัน
   announce:      (orderId) => call('announce', { uid:_currentUid, orderId }),
   announceDay:   (date)    => call('announce', { uid:_currentUid, scope:'today', date: date||'' }),
   status:     (orderId, value)  => call('status', { uid:_currentUid, orderId, value }),
@@ -62,15 +60,15 @@ export const api = USE_MOCK ? mock : {
   addItem:    (orderId, item)   => call('addItem', { uid:_currentUid, orderId, ...item }),
   removeItem: (orderId, menu)   => call('removeItem', { uid:_currentUid, orderId, menu }),
   parseSave:  (text, force)     => call('parseSave', { uid:_currentUid, text, force: force ? 1 : '' }),
-  // [v0.8] new endpoints
+  // new endpoints
   search:     (q, limit)        => call('search', { q, limit }),
   customer:   (name)            => call('customer', { name }),
   menus:      ()                => call('menus'),
   newcount:   (since)           => call('newcount', { since }),
   audit:      (limit)           => call('audit', { limit }),
-  // [#orderlog] timeline การแก้ไขของออเดอร์เดียว
+  // timeline การแก้ไขของออเดอร์เดียว
   orderlog:   (orderId)         => call('orderlog', { orderId }),
-  // [#team] gamified team board
+  // gamified team board
   team:          (month)        => call('team', { month }),
   teamHeartbeat: (name)         => call('teamheartbeat', { uid:_currentUid, name: name||'' }),
   teamProfile:   (fields)       => call('teamprofile',  { uid:_currentUid, ...fields })

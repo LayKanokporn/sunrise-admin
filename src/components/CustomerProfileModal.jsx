@@ -1,4 +1,4 @@
-// [v0.8] Customer profile — รวมประวัติออเดอร์ลูกค้าคนเดียว
+// Customer profile — รวมประวัติออเดอร์ลูกค้าคนเดียว
 import { useQuery } from '@tanstack/react-query';
 import { X, Package, DollarSign, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';

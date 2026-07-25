@@ -1,8 +1,8 @@
 import { Calendar, LayoutGrid, ChefHat, History, Clock, BarChart3, Trophy } from 'lucide-react';
 
-// [v0.2] ปฏิทิน → Kanban → ผลิต → [v0.9] ประวัติ → [#kpi] KPI
-// [#nav] จัดกลุ่มแท็บ (จอใหญ่) — แทนแถวเดียว พอแท็บเยอะจะหาง่ายขึ้น
-// [v0.12/M5] มือถือ: bottom navigation (นิ้วโป้งกดถึง) — flat ไม่จัดกลุ่ม (พื้นที่จำกัด)
+// ปฏิทิน → Kanban → ผลิต → ประวัติ → KPI
+// จัดกลุ่มแท็บ (จอใหญ่) — แทนแถวเดียว พอแท็บเยอะจะหาง่ายขึ้น
+// มือถือ: bottom navigation (นิ้วโป้งกดถึง) — flat ไม่จัดกลุ่ม (พื้นที่จำกัด)
 const groups = [
   { label: 'หน้าหลัก', items: [
     { key: 'calendar', label: 'ปฏิทิน', Icon: Calendar }

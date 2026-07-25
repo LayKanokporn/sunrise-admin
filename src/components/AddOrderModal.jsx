@@ -1,5 +1,4 @@
-// [v0.5] Add Order — paste text เหมือนในไลน์ → ระบบ parse + save
-// [#quickadd] เลือกลูกค้าเก่า → เติมชื่อ/เบอร์/ที่อยู่ให้อัตโนมัติ
+// Add Order — paste text เหมือนในไลน์ → ระบบ parse + save
 import { useState, useEffect, useMemo } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { X, Sparkles, Send, UserSearch } from 'lucide-react';
@@ -107,7 +106,7 @@ export default function AddOrderModal({ onClose, defaultDate }) {
             paste ข้อความออเดอร์เหมือนที่ส่งในไลน์ — ระบบจะ parse อัตโนมัติ
           </div>
 
-          {/* [#quickadd] เลือกลูกค้าเก่า → เติมหัวออเดอร์ให้ */}
+          {/* เลือกลูกค้าเก่า → เติมหัวออเดอร์ให้ */}
           <CustomerQuickFill onPick={(c) => {
             const head = `ออเดอร์รอบส่ง  @${c.customerName}\n` +
               (c.phone ? c.phone + '\n' : '') +
@@ -185,7 +184,7 @@ export default function AddOrderModal({ onClose, defaultDate }) {
   );
 }
 
-// [#quickadd] ค้นลูกค้าเก่า → dedupe ตามชื่อ → เลือกแล้วเติมเบอร์/ที่อยู่ล่าสุด
+// ค้นลูกค้าเก่า → dedupe ตามชื่อ → เลือกแล้วเติมเบอร์/ที่อยู่ล่าสุด
 function CustomerQuickFill({ onPick }) {
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');

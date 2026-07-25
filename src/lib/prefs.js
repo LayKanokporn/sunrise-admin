@@ -1,4 +1,4 @@
-// [#prefs] Preferences store — density / pinned orders
+// Preferences store — density / pinned orders
 //   pub/sub แบบเดียวกับ toast.js, persist ใน localStorage
 //   logging: console ทุกการเปลี่ยน (Habit 5)
 import { useEffect, useState } from 'react';
@@ -12,7 +12,7 @@ function load() {
     return {
       density: p.density === 'compact' ? 'compact' : 'comfortable',
       pins: Array.isArray(p.pins) ? p.pins : [],
-      // [#goal] เป้ายอดขายต่อเดือน — ไม่มี backend field เก็บใน localStorage
+      // เป้ายอดขายต่อเดือน — ไม่มี backend field เก็บใน localStorage
       salesGoal: Number(p.salesGoal) > 0 ? Number(p.salesGoal) : 0
     };
   } catch (e) {

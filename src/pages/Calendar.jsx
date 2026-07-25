@@ -1,5 +1,4 @@
-// [v0.2] Calendar Main Dashboard — month grid + summary + day detail
-// [v0.8] เพิ่ม filter chips + bulk select + customer profile
+// Calendar Main Dashboard — month grid + summary + day detail
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, TrendingUp, Package, DollarSign, AlertCircle, Megaphone } from 'lucide-react';
@@ -33,7 +32,7 @@ function heatBg(count, max) {
   return 'bg-amber-50/50';
 }
 
-// [v0.7] FIX timezone bug — เดิมใช้ toISOString() แปลงเป็น UTC ทำให้วันที่ลด 1
+// FIX timezone bug — เดิมใช้ toISOString() แปลงเป็น UTC ทำให้วันที่ลด 1
 function fmtISO(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,'0');
@@ -67,7 +66,7 @@ function getMonthMatrix(year, month) {
 
 export default function CalendarPage() {
   const today = useMemo(() => new Date(), []);
-  // [v0.10] รับ deep link ?month=YYYY-MM
+  // รับ deep link ?month=YYYY-MM
   //   อ่าน URL ตรง ๆ ก่อน (Calendar mount ก่อน App effect เขียน sessionStorage)
   //   sessionStorage เป็น fallback กรณีสลับแท็บแล้วกลับมา
   const initialAnchor = useMemo(() => {
@@ -86,13 +85,13 @@ export default function CalendarPage() {
   }, []);
   const [anchor, setAnchor] = useState(initialAnchor);
   const [picked, setPicked] = useState(fmtISO(today));
-  // [v0.5] modal state — false=ปิด | null=เปิดไม่ pre-fill | 'YYYY-MM-DD'=เปิด+pre-fill
+  // modal state — false=ปิด | null=เปิดไม่ pre-fill | 'YYYY-MM-DD'=เปิด+pre-fill
   const [addWithDate, setAddWithDate] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  // [M3] month/year picker popover บน header
+  // month/year picker popover บน header
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const modals = useModals();
-  // [v0.6] auto-scroll ลง detail เมื่อเลือกวัน (เฉพาะจอใหญ่)
+  // auto-scroll ลง detail เมื่อเลือกวัน (เฉพาะจอใหญ่)
   const detailRef = useRef(null);
   function pickDate(iso) {
     setPicked(iso);
@@ -104,7 +103,7 @@ export default function CalendarPage() {
     }
     // lg+: detail อยู่ข้างๆ — ไม่ต้อง scroll
   }
-  // [v0.13] ประกาศรายการของวันที่เลือกเข้ากลุ่ม LINE
+  // ประกาศรายการของวันที่เลือกเข้ากลุ่ม LINE
   const [announcing, setAnnouncing] = useState(false);
   async function announceDay() {
     if (!confirm('ประกาศรายการส่งของวันนี้เข้ากลุ่ม LINE?')) return;
@@ -118,7 +117,7 @@ export default function CalendarPage() {
       toast.error('ประกาศไม่สำเร็จ: ' + e.message);
     } finally { setAnnouncing(false); }
   }
-  // [v0.8] filter + bulk state
+  // filter + bulk state
   const [filters, setFilters] = useState(() => new Set());
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const toggleFilter = (key) => setFilters(prev => {
@@ -132,7 +131,7 @@ export default function CalendarPage() {
     return next;
   });
 
-  // [#longpress] กดค้างที่วัน → popover ดูลิสต์ออเดอร์ ไม่ต้องเปิด sheet เต็มจอ
+  // กดค้างที่วัน → popover ดูลิสต์ออเดอร์ ไม่ต้องเปิด sheet เต็มจอ
   const [preview, setPreview] = useState(null); // { iso, x, y } | null
   const lpTimer = useRef(null);
   const lpFired = useRef(false);
@@ -148,7 +147,7 @@ export default function CalendarPage() {
   };
   const cancelLongPress = () => { if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; } };
 
-  // [#swipe] ปัดซ้าย-ขวาบนกริดเดือน = เปลี่ยนเดือน (มือถือ) — กันชน scroll แนวตั้ง
+  // ปัดซ้าย-ขวาบนกริดเดือน = เปลี่ยนเดือน (มือถือ) — กันชน scroll แนวตั้ง
   const touchRef = useRef(null);
   const gridTouchStart = (e) => { const t = e.touches[0]; touchRef.current = { x:t.clientX, y:t.clientY }; };
   const gridTouchEnd = (e) => {
@@ -176,7 +175,7 @@ export default function CalendarPage() {
     staleTime: 30_000
   });
 
-  // [v0.13/P1] วันที่เลือกดึงจาก monthQ ตรง ๆ (ออเดอร์อยู่ในกริดอยู่แล้ว ไม่ต้องยิง network ซ้ำ)
+  // วันที่เลือกดึงจาก monthQ ตรง ๆ (ออเดอร์อยู่ในกริดอยู่แล้ว ไม่ต้องยิง network ซ้ำ)
   //   → กดวันแล้ว bottom sheet เด้งทันที ไม่รอโหลด
   const dayQ = useMemo(() => {
     const orders = (monthQ.data?.orders || []).filter((o) => o.deliveryDateISO === picked);
@@ -186,7 +185,7 @@ export default function CalendarPage() {
     };
   }, [monthQ.data, monthQ.isLoading, picked]);
 
-  // [v0.4] group by ISO date — เก็บ orders จริงเพื่อแสดง mini card ใน grid
+  // group by ISO date — เก็บ orders จริงเพื่อแสดง mini card ใน grid
   const byDate = useMemo(() => {
     const m = {};
     (monthQ.data?.orders || []).forEach((o) => {
@@ -206,7 +205,7 @@ export default function CalendarPage() {
     const d = new Date(today); d.setDate(d.getDate() + 1); return fmtISO(d);
   }, [today]);
 
-  const p = usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด → จัดเรียงใหม่ทันที + [#goal] salesGoal
+  const p = usePrefs(); // re-render เมื่อปัก/ปลดหมุด → จัดเรียงใหม่ทันที + salesGoal
 
   const monthStats = useMemo(() => {
     const all = (monthQ.data?.orders || []);
@@ -241,7 +240,7 @@ export default function CalendarPage() {
     const pending = orders.filter(o => (o.paymentStatus || '').toLowerCase() !== 'paid').length;
     const count   = orders.length;
 
-    // [AOV] ยอดขายรวม / AOV ของเดือน (ไม่รวมออเดอร์ที่ยกเลิก)
+    // ยอดขายรวม / AOV ของเดือน (ไม่รวมออเดอร์ที่ยกเลิก)
     const revenue = sumArr(validOrders.map(o => o.grandTotal || 0));
     const aov = validOrders.length > 0 ? Math.round(revenue / validOrders.length) : 0;
 
@@ -283,7 +282,7 @@ export default function CalendarPage() {
     return rows;
   }, [cells]);
 
-  // [E2] keyboard nav: ←→ เปลี่ยนเดือน, Esc ปิด panel/sheet
+  // keyboard nav: ←→ เปลี่ยนเดือน, Esc ปิด panel/sheet
   useEffect(() => {
     function onKey(e) {
       if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
@@ -297,8 +296,8 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4">
-      {/* [v0.4] KPI — โฟกัสที่ออเดอร์ที่ต้องทำ (ไม่เอายอดเงิน) */}
-      {/* [v0.12/M1] มือถือ: 4 ใบแถวเดียวแบบ compact — เห็นปฏิทินทันทีไม่ต้อง scroll */}
+      {/* KPI — โฟกัสที่ออเดอร์ที่ต้องทำ (ไม่เอายอดเงิน) */}
+      {/* มือถือ: 4 ใบแถวเดียวแบบ compact — เห็นปฏิทินทันทีไม่ต้อง scroll */}
       <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <StatCard icon={<Package size={18}/>}     label="ออเดอร์"  value={monthStats.count}   color="text-sunrise-600 bg-sunrise-50"
           spark={monthStats.sparkOrders}  delta={monthStats.weekDelta}
@@ -314,17 +313,17 @@ export default function CalendarPage() {
           onClick={() => toggleFilter('pending')} />
       </div>
 
-      {/* [#kpi] insight ยอดขาย (AOV/เป้า/ช่องทาง/กราฟ/ช่วงวันที่) ย้ายไปหน้า "KPI" แล้ว */}
+      {/* insight ยอดขาย (AOV/เป้า/ช่องทาง/กราฟ/ช่วงวันที่) ย้ายไปหน้า "KPI" แล้ว */}
 
-      {/* [W4] split layout: ปฏิทินซ้าย + รายการวันขวา บน lg+ */}
+      {/* split layout: ปฏิทินซ้าย + รายการวันขวา บน lg+ */}
       <div className="lg:flex lg:gap-6 lg:items-start">
       <div className="flex-1 min-w-0 space-y-4">
 
-      {/* ── Month nav ── [v0.12/M4] sticky — เปลี่ยนเดือนได้ตลอดเวลา scroll */}
+      {/* ── Month nav ── sticky — เปลี่ยนเดือนได้ตลอดเวลา scroll */}
       <div className="card flex items-center justify-between sticky top-[57px] sm:top-[106px] z-20 shadow-sm">
         <button onClick={() => setAnchor(addMonths(anchor, -1))} className="btn btn-ghost p-2"><ChevronLeft size={20} /></button>
         <div className="text-center relative">
-          {/* [M3] กดชื่อเดือน → month picker */}
+          {/* กดชื่อเดือน → month picker */}
           <button
             onClick={() => setShowMonthPicker(v => !v)}
             className="font-bold text-lg hover:text-sunrise-600 transition-colors">
@@ -411,7 +410,7 @@ export default function CalendarPage() {
                 onPointerLeave={cancelLongPress}
                 onPointerMove={cancelLongPress}
                 className={
-                  'rounded-lg p-1.5 sm:p-2 text-left overflow-hidden transition-all border w-full flex flex-col ' +
+                  'rounded-lg p-1 sm:p-2 text-left overflow-hidden transition-all border w-full flex flex-col ' +
                   (!cell.inMonth ? 'opacity-20 pointer-events-none ' :
                     isPast ? 'opacity-60 ' : '') +
                   (isToday ? 'bg-sunrise-50/50 ' : 'bg-white ') +
@@ -428,39 +427,33 @@ export default function CalendarPage() {
                     <span className="text-[9px] sm:text-[10px] text-slate-400 font-medium">{info.count}</span>
                   )}
                 </div>
-                {/* mini order cards */}
+                {/* mini order cards — แสดงชื่อลูกค้าทั้งมือถือและ desktop
+                    มือถือ 3 ใบ / desktop 4 ใบ (ช่องแคบกว่า) เส้นซ้ายบอกสถานะรายใบ */}
                 {info && (
-                  <div className="flex-1 space-y-0.5 overflow-hidden">
-                    {/* มือถือ: แสดง badge จำนวน */}
-                    <div className="sm:hidden flex justify-center">
-                      <span className={'inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full text-[10px] font-bold ' +
-                        (hasUrgent ? 'bg-red-100 text-red-600' :
-                         info.pending > 0 ? 'bg-amber-100 text-amber-700' :
-                                            'bg-emerald-100 text-emerald-600')}>
-                        {info.count}
-                      </span>
-                    </div>
-                    {/* desktop: mini cards with left border */}
-                    <div className="hidden sm:block space-y-0.5">
-                      {info.orders.slice(0, 4).map((o) => {
-                        const borderColor = o.isUrgent ? 'border-l-red-500' :
-                          /completed|ส่งแล้ว|delivered/.test(o.status) ? 'border-l-emerald-500' :
-                          /cancelled|ยกเลิก/.test(o.status) ? 'border-l-slate-300' :
-                          (o.paymentStatus||'').toLowerCase() === 'paid' ? 'border-l-green-400' :
-                          'border-l-amber-400';
-                        const name = String(o.customerName||'').replace(/^(FB|Line OA)\s*[:\-]?\s*/i,'').trim();
-                        return (
-                          <div key={o.orderId}
-                            className={'border-l-[3px] pl-1.5 pr-0.5 py-0.5 rounded-r bg-slate-50/80 text-[10px] leading-tight truncate ' + borderColor}>
-                            <span className="text-slate-400 mr-1">{o.deliveryTime || ''}</span>
-                            <span className="text-slate-700">{name || o.orderId}</span>
-                          </div>
-                        );
-                      })}
-                      {info.orders.length > 4 && (
-                        <div className="text-[9px] text-slate-400 pl-2">+{info.orders.length - 4} อีก</div>
-                      )}
-                    </div>
+                  <div className="flex-1 space-y-px sm:space-y-0.5 overflow-hidden">
+                    {info.orders.slice(0, 4).map((o, oi) => {
+                      const borderColor = o.isUrgent ? 'border-l-red-500' :
+                        /completed|ส่งแล้ว|delivered/.test(o.status) ? 'border-l-emerald-500' :
+                        /cancelled|ยกเลิก/.test(o.status) ? 'border-l-slate-300' :
+                        (o.paymentStatus||'').toLowerCase() === 'paid' ? 'border-l-green-400' :
+                        'border-l-amber-400';
+                      const name = String(o.customerName||'').replace(/^(FB|Line OA)\s*[:\-]?\s*/i,'').trim();
+                      return (
+                        <div key={o.orderId}
+                          className={'border-l-[3px] pl-0.5 sm:pl-1.5 pr-0.5 rounded-r bg-slate-50/80 ' +
+                            'text-[8px] sm:text-[10px] leading-[1.35] sm:leading-tight truncate ' +
+                            (oi >= 3 ? 'hidden sm:block ' : '') + borderColor}>
+                          <span className="hidden sm:inline text-slate-400 mr-1">{o.deliveryTime || ''}</span>
+                          <span className="text-slate-700">{name || o.orderId}</span>
+                        </div>
+                      );
+                    })}
+                    {info.orders.length > 3 && (
+                      <div className="sm:hidden text-[8px] text-slate-400 pl-1">+{info.orders.length - 3}</div>
+                    )}
+                    {info.orders.length > 4 && (
+                      <div className="hidden sm:block text-[9px] text-slate-400 pl-2">+{info.orders.length - 4} อีก</div>
+                    )}
                   </div>
                 )}
                 {isEmpty && !isPast && (
@@ -484,7 +477,7 @@ export default function CalendarPage() {
 
       {/* RIGHT column: day detail — sm+ only, sticky บน lg+ */}
       <div ref={detailRef} className="hidden sm:block lg:w-[400px] lg:shrink-0 lg:sticky lg:top-[106px] lg:self-start lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto card scroll-mt-32">
-        {/* [#sticky] หัววันที่เกาะบนตอนเลื่อนดูลิสต์ยาว */}
+        {/* หัววันที่เกาะบนตอนเลื่อนดูลิสต์ยาว */}
         <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pt-1 pb-3 mb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
           <div>
             <div className="font-bold">
@@ -537,7 +530,7 @@ export default function CalendarPage() {
       </div>
       </div>{/* end split layout */}
 
-      {/* [C3] ปุ่มวันนี้ลอย — แสดงเมื่อ anchor ไม่ใช่เดือนปัจจุบัน */}
+      {/* ปุ่มวันนี้ลอย — แสดงเมื่อ anchor ไม่ใช่เดือนปัจจุบัน */}
       {(anchor.getFullYear() !== today.getFullYear() || anchor.getMonth() !== today.getMonth()) && (
         <button
           onClick={() => { setAnchor(new Date()); pickDate(todayKey); }}
@@ -546,7 +539,7 @@ export default function CalendarPage() {
         </button>
       )}
 
-      {/* [v0.12/M3] มือถือ: day detail เป็น bottom sheet */}
+      {/* มือถือ: day detail เป็น bottom sheet */}
       {sheetOpen && (
         <div className="sm:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSheetOpen(false)} />
@@ -599,7 +592,7 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* [#longpress] popover ดูลิสต์ออเดอร์แบบเร็ว */}
+      {/* popover ดูลิสต์ออเดอร์แบบเร็ว */}
       {preview && (() => {
         const list = (monthQ.data?.orders || []).filter((o) => o.deliveryDateISO === preview.iso && o.status !== '❌ ยกเลิก');
         const left = Math.min(Math.max(preview.x - 130, 8), window.innerWidth - 268);
@@ -639,7 +632,7 @@ export default function CalendarPage() {
         );
       })()}
 
-      {/* [v0.5] Floating Add button — [M5] มือถือยกขึ้นพ้น bottom nav */}
+      {/* Floating Add button — มือถือยกขึ้นพ้น bottom nav */}
       <button
         onClick={() => setAddWithDate(null)}
         className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-30 w-14 h-14 rounded-full bg-sunrise-500 text-white shadow-lg hover:bg-sunrise-600 flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
@@ -647,7 +640,7 @@ export default function CalendarPage() {
         <Plus size={28} />
       </button>
 
-      {/* [v0.8] Bulk action bar */}
+      {/* Bulk action bar */}
       <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
 
       {/* AddOrder modal — เฉพาะตัวนี้ ไม่ใช่ global — addWithDate: ISO date สำหรับ pre-fill */}
@@ -661,7 +654,7 @@ export default function CalendarPage() {
   );
 }
 
-// [v0.12/M1] มือถือ: แนวตั้ง compact (เลข + label เล็ก, ไม่มี icon) / จอใหญ่: เหมือนเดิม
+// มือถือ: แนวตั้ง compact (เลข + label เล็ก, ไม่มี icon) / จอใหญ่: เหมือนเดิม
 function Sparkline({ data, color }) {
   if (!data || data.length < 2) return null;
   const max = Math.max(1, ...data);

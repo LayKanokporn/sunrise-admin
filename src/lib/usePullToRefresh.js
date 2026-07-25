@@ -1,4 +1,4 @@
-// [v0.11/W3] Pull-to-refresh — ลากลงจากบนสุดของหน้าเพื่อ refetch ทุก query
+// Pull-to-refresh — ลากลงจากบนสุดของหน้าเพื่อ refetch ทุก query
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 

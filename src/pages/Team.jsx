@@ -1,4 +1,4 @@
-// [#team] หน้าทีม — leaderboard + online status + edit profile ตัวเอง
+// หน้าทีม — leaderboard + online status + edit profile ตัวเอง
 //   ข้อมูล: api.team(month) → members[] + onlineCount
 //   แต้ม: +1 สร้าง / +1 ส่งแล้ว / +2 urgent ทันเวลา
 import { useMemo, useState } from 'react';

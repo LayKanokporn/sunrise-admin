@@ -1,4 +1,4 @@
-// [v0.11/W1] ErrorBoundary — กัน component crash แล้วจอขาวทั้งหน้า
+// ErrorBoundary — กัน component crash แล้วจอขาวทั้งหน้า
 import { Component } from 'react';
 
 function log(level, fn, msg, ctx) {

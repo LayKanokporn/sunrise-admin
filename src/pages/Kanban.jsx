@@ -1,5 +1,4 @@
-// [v0.1] Kanban — 4 columns: รอทำ / กำลังทำ / พร้อมส่ง / ส่งแล้ว
-// [v0.8] filter chips + bulk select + customer profile + global modals
+// Kanban — 4 columns: รอทำ / กำลังทำ / พร้อมส่ง / ส่งแล้ว
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../lib/api';
@@ -21,7 +20,7 @@ const columns = [
 ];
 
 function isoOffset(days) {
-  // [v0.7] local date components
+  // local date components
   const d = new Date();
   d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -32,7 +31,7 @@ export default function Kanban() {
   const [date, setDate] = useState(todayISO());
   const [showAdd, setShowAdd] = useState(false);
   const modals = useModals();
-  // [v0.8] filter + bulk
+  // filter + bulk
   const [filters, setFilters] = useState(() => new Set());
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const toggleFilter = (key) => setFilters(prev => {
@@ -51,7 +50,7 @@ export default function Kanban() {
     queryFn: () => api.orders({ date })
   });
 
-  usePrefs(); // [#pin] re-render เมื่อปัก/ปลดหมุด
+  usePrefs(); // re-render เมื่อปัก/ปลดหมุด
   const orders = applyOrderFilters(data?.orders || [], filters);
   const buckets = columns.map(c => ({
     ...c,
@@ -70,7 +69,7 @@ export default function Kanban() {
           onChange={(e) => setDate(e.target.value)}
           className="px-3 py-2 rounded-lg border border-slate-300 text-sm"
         />
-        {/* [v0.13/U3] ปุ่มลัดวัน */}
+        {/* ปุ่มลัดวัน */}
         <div className="flex gap-1">
           {[['เมื่อวาน',-1],['วันนี้',0],['พรุ่งนี้',1]].map(([label,off]) => {
             const iso = isoOffset(off);
@@ -87,7 +86,7 @@ export default function Kanban() {
         </div>
       </div>
 
-      {/* [v0.8] filter chips */}
+      {/* filter chips */}
       <FilterChips chips={ORDER_FILTERS} active={filters} onToggle={toggleFilter} />
 
       {error && <div className="card text-red-600">⚠️ {error.message}</div>}

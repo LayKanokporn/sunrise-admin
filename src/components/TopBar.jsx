@@ -1,4 +1,4 @@
-// [v0.8] TopBar — refresh + search + notification badge
+// TopBar — refresh + search + notification badge
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { RefreshCw, Search, Bell, Settings, Rows3, Rows2 } from 'lucide-react';
@@ -9,14 +9,14 @@ const LAST_SEEN_KEY = 'sunrise.lastSeenTimestamp';
 
 export default function TopBar({ profile, onOpenSearch }) {
   const qc = useQueryClient();
-  const isFetching = useIsFetching();   // [v0.13/U1] >0 = มี query กำลังโหลด
-  const p = usePrefs();                 // [#prefs] density / color-blind
+  const isFetching = useIsFetching();   // >0 = มี query กำลังโหลด
+  const p = usePrefs();                 // density / color-blind
   const [showSettings, setShowSettings] = useState(false);
   const [lastSeen, setLastSeen] = useState(
     () => localStorage.getItem(LAST_SEEN_KEY) || new Date(Date.now() - 24*3600*1000).toISOString()
   );
 
-  // [v0.8] poll new orders every 60s
+  // poll new orders every 60s
   const { data: newData } = useQuery({
     queryKey: ['newcount', lastSeen],
     queryFn: () => api.newcount(lastSeen),
@@ -72,7 +72,7 @@ export default function TopBar({ profile, onOpenSearch }) {
             <RefreshCw size={18} className={isFetching ? 'animate-spin text-sunrise-500' : ''} />
           </button>
 
-          {/* [#prefs] ตั้งค่าการแสดงผล */}
+          {/* ตั้งค่าการแสดงผล */}
           <div className="relative">
             <button onClick={() => setShowSettings((s) => !s)} className="btn btn-ghost p-2" aria-label="settings" title="ตั้งค่าการแสดงผล">
               <Settings size={18} className={showSettings ? 'text-sunrise-500' : ''} />
@@ -101,7 +101,7 @@ export default function TopBar({ profile, onOpenSearch }) {
         </div>
       </div>
 
-      {/* [v0.8] new order preview banner */}
+      {/* new order preview banner */}
       {newCount > 0 && newData?.preview?.length > 0 && (
         <div className="bg-sunrise-50 border-t border-sunrise-100 px-4 py-2 text-xs text-sunrise-700 flex items-center justify-between">
           <span>🆕 ออเดอร์ใหม่ {newCount}: {newData.preview.join(', ')}{newData.preview.length < newCount ? '...' : ''}</span>

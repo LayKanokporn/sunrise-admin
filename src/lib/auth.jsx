@@ -1,6 +1,4 @@
-// [v0.1] Auth + LIFF init context
-// [v0.13/S2] LIFF dynamic import — โหลด @line/liff เฉพาะตอนต้อง init จริง
-//   (visit ที่มี cache / mock mode ข้ามไป ไม่ต้อง parse lib ที่หนัก)
+// Auth + LIFF init context
 import { createContext, useContext, useEffect, useState } from 'react';
 import { api, setAuthUid } from './api';
 
@@ -22,7 +20,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     (async () => {
       log('INFO', 'init', 'starting LIFF + admin check');
-      // [v0.4] mock mode — skip LIFF ทั้งหมด
+      // mock mode — skip LIFF ทั้งหมด
       if (String(import.meta.env.VITE_USE_MOCK||'').toLowerCase() === 'true') {
         log('INFO', 'init', 'MOCK MODE — skipping LIFF');
         setState({ loading:false, isAdmin:true,
@@ -31,7 +29,7 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // [v0.10] sessionStorage cache — ลด GAS cold start สำหรับ visit ซ้ำในวันเดียวกัน
+      // sessionStorage cache — ลด GAS cold start สำหรับ visit ซ้ำในวันเดียวกัน
       const CACHE_KEY = 'sunrise_auth_v1';
       const CACHE_TTL = 8 * 60 * 60 * 1000; // 8 ชั่วโมง
       try {
@@ -62,7 +60,7 @@ export function AuthProvider({ children }) {
         const profile = await liff.getProfile();
         log('INFO', 'init', 'got profile', { userId: profile.userId.substring(0,8) + '...' });
 
-        // [v0.10] OPEN_ACCESS mode — ข้าม verify ทั้งหมด ทุกคนเป็น admin
+        // OPEN_ACCESS mode — ข้าม verify ทั้งหมด ทุกคนเป็น admin
         const openAccess = String(import.meta.env.VITE_OPEN_ACCESS||'').toLowerCase() === 'true';
         let isAdmin = openAccess;
         if (!openAccess) {

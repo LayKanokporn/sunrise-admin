@@ -1,4 +1,4 @@
-// [v0.8] FilterChips — เลือกหลายอันพร้อมกัน (toggle)
+// FilterChips — เลือกหลายอันพร้อมกัน (toggle)
 //   active = Set<string>
 import { Check } from 'lucide-react';
 

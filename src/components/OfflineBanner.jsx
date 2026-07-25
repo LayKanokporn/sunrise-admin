@@ -1,4 +1,4 @@
-// [v0.11/W1] OfflineBanner — แจ้งเมื่อเน็ตหลุด + refetch อัตโนมัติเมื่อกลับมา
+// OfflineBanner — แจ้งเมื่อเน็ตหลุด + refetch อัตโนมัติเมื่อกลับมา
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 

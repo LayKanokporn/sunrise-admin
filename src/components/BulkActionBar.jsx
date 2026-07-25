@@ -1,4 +1,4 @@
-// [v0.9] BulkActionBar — confirm รวมครั้งเดียว + optimistic + progress
+// BulkActionBar — confirm รวมครั้งเดียว + optimistic + progress
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { X, CheckCircle2, AlertTriangle, Loader2, Truck } from 'lucide-react';
@@ -13,7 +13,7 @@ export default function BulkActionBar({ selectedIds, onClear }) {
 
   if (count === 0) return null;
 
-  // [D3] กดปุ่ม → เปิด confirm รวม (ไม่ใช่ confirm ทีละใบ)
+  // กดปุ่ม → เปิด confirm รวม (ไม่ใช่ confirm ทีละใบ)
   function ask(label, icon, fn) {
     setConfirm({ label, icon, fn });
   }
@@ -73,7 +73,7 @@ export default function BulkActionBar({ selectedIds, onClear }) {
         </div>
       </div>
 
-      {/* [D3] confirm dialog รวม */}
+      {/* confirm dialog รวม */}
       {confirm && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => !busy && setConfirm(null)}>
           <div className="bg-white rounded-2xl p-5 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>

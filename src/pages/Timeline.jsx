@@ -1,4 +1,4 @@
-// [#timeline] มุมมองแกนเวลา — วางออเดอร์ตามเวลาส่ง เห็นชั่วโมงพีคของวัน
+// มุมมองแกนเวลา — วางออเดอร์ตามเวลาส่ง เห็นชั่วโมงพีคของวัน
 import { useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { api } from '../lib/api';

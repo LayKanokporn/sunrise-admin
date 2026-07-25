@@ -1,5 +1,4 @@
-// [v0.5] Order detail modal — แก้/ดูทุก field + จัดการ items
-// [v0.8] เพิ่ม typeahead autocomplete สำหรับเพิ่มเมนู
+// Order detail modal — แก้/ดูทุก field + จัดการ items
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, AlertTriangle, CheckCircle2, Trash2, Plus, MapPin, Phone, Clock, Save, Megaphone } from 'lucide-react';
@@ -12,7 +11,7 @@ const statusOptions = [
   { value:'completed', label:'🎉 ส่งแล้ว'  }
 ];
 
-// [#orderlog] แปลง action เป็นภาษาไทย
+// แปลง action เป็นภาษาไทย
 const ACTION_LABEL = {
   update:'แก้ข้อมูล', status:'เปลี่ยนสถานะ', paid:'ชำระเงิน', urgent:'ตั้ง/ปลดด่วน',
   cancel:'ยกเลิก', note:'แก้โน้ต', additem:'เพิ่มเมนู', removeitem:'ลบเมนู', announce:'ประกาศกลุ่ม'
@@ -31,7 +30,7 @@ export default function OrderDetailModal({ order, onClose }) {
   const [newItem, setNewItem] = useState({ menu:'', qty:1, unit:'ชิ้น', price:0 });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
-  // [#conflict] เวลาแก้ล่าสุดตอนเปิด — ใช้ตรวจว่ามีคนอื่นแก้ทับระหว่างนี้ไหม
+  // เวลาแก้ล่าสุดตอนเปิด — ใช้ตรวจว่ามีคนอื่นแก้ทับระหว่างนี้ไหม
   const [baseUpdatedAt, setBaseUpdatedAt] = useState(order.updatedAt || '');
 
   useEffect(() => {
@@ -46,7 +45,7 @@ export default function OrderDetailModal({ order, onClose }) {
     setBaseUpdatedAt(order.updatedAt || '');
   }, [order.orderId]);
 
-  // [#orderlog] timeline การแก้ไขของออเดอร์นี้ — โหลดเมื่อเข้าแท็บประวัติ
+  // timeline การแก้ไขของออเดอร์นี้ — โหลดเมื่อเข้าแท็บประวัติ
   const logQ = useQuery({
     queryKey: ['orderlog', order.orderId],
     queryFn: () => api.orderlog(order.orderId),
@@ -54,7 +53,7 @@ export default function OrderDetailModal({ order, onClose }) {
     staleTime: 15_000
   });
 
-  // [#conflict] ก่อนบันทึก เช็คว่ามีคนแก้ทับหรือยัง (เทียบ updatedAt ปัจจุบันกับตอนเปิด)
+  // ก่อนบันทึก เช็คว่ามีคนแก้ทับหรือยัง (เทียบ updatedAt ปัจจุบันกับตอนเปิด)
   async function checkConflict() {
     if (!baseUpdatedAt || !order.deliveryDateISO) return true; // ไม่มี baseline → ผ่าน
     try {
@@ -225,7 +224,7 @@ export default function OrderDetailModal({ order, onClose }) {
                   {order.isUrgent ? 'ปลด urgent' : 'ตั้งเป็นด่วน'}
                 </button>
 
-                {/* [v0.13] กดผิดย้อนได้ — ชำระแล้ว → กดเพื่อยกเลิกชำระ */}
+                {/* กดผิดย้อนได้ — ชำระแล้ว → กดเพื่อยกเลิกชำระ */}
                 {isPaid ? (
                   <div className="flex gap-2">
                     <div className="flex-1 btn bg-emerald-100 text-emerald-700 flex items-center justify-center gap-2 pointer-events-none">
@@ -243,7 +242,7 @@ export default function OrderDetailModal({ order, onClose }) {
                   </button>
                 )}
 
-                {/* [v0.13] ประกาศออเดอร์นี้เข้ากลุ่ม LINE */}
+                {/* ประกาศออเดอร์นี้เข้ากลุ่ม LINE */}
                 <button onClick={announce} disabled={busy}
                   className="btn w-full bg-sky-500 text-white flex items-center justify-center gap-2">
                   <Megaphone size={16} /> ประกาศเข้ากลุ่ม LINE
@@ -257,7 +256,7 @@ export default function OrderDetailModal({ order, onClose }) {
             </div>
           )}
 
-          {/* [#orderlog] ประวัติการแก้ไขของออเดอร์นี้ */}
+          {/* ประวัติการแก้ไขของออเดอร์นี้ */}
           {tab === 'log' && (
             <div className="space-y-2">
               {logQ.isLoading && <div className="text-center text-slate-400 py-8 text-sm">⏳ กำลังโหลด...</div>}
@@ -319,7 +318,7 @@ function Field({ label, value, onChange, placeholder, multiline, icon }) {
   );
 }
 
-// [v0.8] MenuTypeahead — autocomplete ชื่อเมนูจาก /?api=menus
+// MenuTypeahead — autocomplete ชื่อเมนูจาก /?api=menus
 //   suggestions filter ตามที่พิมพ์ + auto-fill หน่วย+ราคา เมื่อคลิก
 function MenuTypeahead({ newItem, setNewItem, onAdd, busy }) {
   const [showList, setShowList] = useState(false);

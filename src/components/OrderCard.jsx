@@ -1,4 +1,4 @@
-// [v0.9] OrderCard — inline action buttons + color code + bulk select + customer click
+// OrderCard — inline action buttons + color code + bulk select + customer click
 import { useState, useRef } from 'react';
 import { Phone, MapPin, Clock, CreditCard, CheckCircle2, AlertTriangle, Pencil, Banknote, Copy, Star } from 'lucide-react';
 import { useOrderActions } from '../lib/useOrderActions';
@@ -6,7 +6,7 @@ import { toast } from '../lib/toast';
 import { buzz } from '../lib/haptic';
 import { prefs, usePrefs } from '../lib/prefs';
 
-// [#8] copy ข้อความเข้า clipboard + haptic + toast
+// copy ข้อความเข้า clipboard + haptic + toast
 function copyText(text, label) {
   buzz(10);
   const done = () => toast.success('คัดลอก' + (label || '') + 'แล้ว');
@@ -22,7 +22,7 @@ function copyText(text, label) {
   }
 }
 
-// [D2] color code ตาม status — เห็นปุ๊บรู้ปั๊บ
+// color code ตาม status — เห็นปุ๊บรู้ปั๊บ
 function getCardStyle(order) {
   if (order.status === '❌ ยกเลิก')
     return { border: 'border-l-slate-400', bg: 'bg-slate-50 opacity-60', badge: '❌ ยกเลิก', badgeColor: 'bg-slate-200 text-slate-600' };
@@ -47,7 +47,7 @@ export default function OrderCard({
   selected = false,
   onToggleSelect,
   onCustomerClick,
-  showInlineActions = true   // [B1] ปุ่มบนการ์ด
+  showInlineActions = true   // ปุ่มบนการ์ด
 }) {
   const actions = useOrderActions();
   const p = usePrefs();
@@ -60,7 +60,7 @@ export default function OrderCard({
   const firstItems = (order.items || []).slice(0, 3);
   const moreItems = itemCount - firstItems.length;
 
-  // [M1] swipe actions: ← mark paid, → toggle urgent
+  // swipe actions: ← mark paid, → toggle urgent
   const swipeStartX = useRef(null);
   const [swipeDx, setSwipeDx] = useState(0);
   function onSwipeStart(e) { swipeStartX.current = e.touches[0].clientX; }
@@ -79,7 +79,7 @@ export default function OrderCard({
 
   const stop = (e) => e.stopPropagation();
 
-  // [M1] swipe hint: สีพื้นหลังเปลี่ยนตามทิศที่ปัด
+  // swipe hint: สีพื้นหลังเปลี่ยนตามทิศที่ปัด
   const swipeHint = swipeDx < -20 ? 'bg-emerald-50' : swipeDx > 20 ? 'bg-red-50' : '';
 
   return (
@@ -133,7 +133,7 @@ export default function OrderCard({
               <Clock size={14} /> {order.deliveryTime}
             </div>
           )}
-          {/* [#pin] ปักหมุด — ลอยขึ้นบนสุด */}
+          {/* ปักหมุด — ลอยขึ้นบนสุด */}
           <button
             data-no-card-click
             onClick={(e) => { stop(e); const on = prefs.togglePin(order.orderId); buzz(8); toast.success(on ? 'ปักหมุดแล้ว' : 'ปลดหมุดแล้ว'); }}
@@ -145,7 +145,7 @@ export default function OrderCard({
         </div>
       </div>
 
-      {/* [#note] โน้ตด่วน — แปะเหลืองเห็นเด่น ไม่ต้องเปิด detail */}
+      {/* โน้ตด่วน — แปะเหลืองเห็นเด่น ไม่ต้องเปิด detail */}
       {(order.note || '').trim() && (
         <div className="flex items-start gap-1.5 mb-2 px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
           <span className="shrink-0 font-bold">!</span>
@@ -165,7 +165,7 @@ export default function OrderCard({
             {moreItems > 0 && <div className="text-xs text-slate-400">+ อีก {moreItems} รายการ</div>}
           </div>
           <div className="space-y-1 text-xs text-slate-500">
-            {/* [v0.13/U2] แตะเบอร์ = โทร / แตะที่อยู่ = เปิด Google Maps */}
+            {/* แตะเบอร์ = โทร / แตะที่อยู่ = เปิด Google Maps */}
             {order.phone && (
               <div className="flex items-center gap-1">
                 <a data-no-card-click onClick={stop} href={'tel:' + order.phone.replace(/[^0-9+]/g,'')}
@@ -209,10 +209,10 @@ export default function OrderCard({
         <div className="font-bold text-sunrise-600">฿{order.grandTotal.toLocaleString()}</div>
       </div>
 
-      {/* [B1] inline action buttons — กดบนการ์ดเลย */}
+      {/* inline action buttons — กดบนการ์ดเลย */}
       {showInlineActions && !isCancelled && (
         <div data-no-card-click onClick={stop} className="flex gap-1.5 mt-2 pt-2 border-t border-slate-100">
-          {/* [v0.13] ปุ่มชำระแล้ว — โชว์เฉพาะออเดอร์ที่ยังค้างชำระ (badge เด้งเขียวทันที) */}
+          {/* ปุ่มชำระแล้ว — โชว์เฉพาะออเดอร์ที่ยังค้างชำระ (badge เด้งเขียวทันที) */}
           {!isPaid && (
             <button
               onClick={() => actions.markPaid(order)}

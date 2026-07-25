@@ -1,4 +1,4 @@
-// [LOG] entry — main.jsx mounts QueryClient + App
+// entry — main.jsx mounts QueryClient + App
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -6,7 +6,7 @@ import App from './App.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import './index.css';
 
-// [v0.13/P2+P3] กันหน่วงบนมือถือ:
+// กันหน่วงบนมือถือ:
 //   - ปิด refetchInterval global — เดิมทุก query (calendar/kanban/production) poll พร้อมกันทุก 60s
 //     เบื้องหลังตลอด ทำให้มือถือ LINE หน่วง + เปลือง quota
 //     → ให้ poll เฉพาะ newcount (เบา) ใน TopBar พอ
@@ -25,7 +25,7 @@ const queryClient = new QueryClient({
   }
 });
 
-// [W1] Persist cache ลง localStorage — เปิดเว็บเห็นข้อมูลรอบก่อนทันที (0ms) แล้ว refetch เงียบๆ
+// Persist cache ลง localStorage — เปิดเว็บเห็นข้อมูลรอบก่อนทันที (0ms) แล้ว refetch เงียบๆ
 // TTL = 5 นาที (ยาวพอที่จะ instant-load หลังเปิดซ้ำ แต่ไม่นานจนข้อมูลเก่าค้าง)
 // หลัง restore → invalidate ทันที เพื่อให้ React Query refetch ใน background โดยไม่ block UI
 const PERSIST_KEY = 'sunrise_qcache_v1';
@@ -70,7 +70,7 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>
 );
 
-// [v0.11/W2] PWA — register service worker (production เท่านั้น)
+// PWA — register service worker (production เท่านั้น)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')

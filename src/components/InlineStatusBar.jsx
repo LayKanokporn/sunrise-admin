@@ -1,4 +1,4 @@
-// [v0.9] InlineStatusBar — ปุ่มเลื่อนสถานะบนการ์ด kanban (ไม่ต้องเปิด modal)
+// InlineStatusBar — ปุ่มเลื่อนสถานะบนการ์ด kanban (ไม่ต้องเปิด modal)
 //   preparing → ready → enroute → done  (กด → next)
 import { ChevronRight } from 'lucide-react';
 import { useOrderActions } from '../lib/useOrderActions';

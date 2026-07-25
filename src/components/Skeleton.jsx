@@ -1,4 +1,4 @@
-// [v0.7] Skeleton loaders — แสดงทันทีตอนกำลังโหลด ทำให้รู้สึกเร็ว
+// Skeleton loaders — แสดงทันทีตอนกำลังโหลด ทำให้รู้สึกเร็ว
 //   (Perceived performance ดีกว่า spinner เพราะเห็นโครงสร้างก่อน)
 
 export function SkeletonBox({ className = '' }) {

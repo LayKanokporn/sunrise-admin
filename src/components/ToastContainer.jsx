@@ -1,4 +1,4 @@
-// [v0.9] Toast UI — แสดง toast stack มุมล่าง + ปุ่ม undo
+// Toast UI — แสดง toast stack มุมล่าง + ปุ่ม undo
 import { useSyncExternalStore } from 'react';
 import { CheckCircle2, XCircle, Info, Undo2, X } from 'lucide-react';
 import { subscribeToasts, getToasts, dismiss } from '../lib/toast';

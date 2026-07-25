@@ -1,4 +1,4 @@
-// [v0.9] Toast store — module-level pub/sub (ไม่พึ่ง lib)
+// Toast store — module-level pub/sub (ไม่พึ่ง lib)
 //   รองรับ: success / error / undo (มีปุ่มเลิกทำ + countdown)
 let toasts = [];
 const listeners = new Set();
@@ -37,6 +37,6 @@ export const toast = {
   success: (msg) => add({ type: 'success', msg, duration: 2200 }),
   error:   (msg) => add({ type: 'error',   msg, duration: 3500 }),
   info:    (msg) => add({ type: 'info',    msg, duration: 2500 }),
-  // [D1] undo toast — มีปุ่ม "เลิกทำ" + countdown 5s
+  // undo toast — มีปุ่ม "เลิกทำ" + countdown 5s
   undo: (msg, onUndo) => add({ type: 'undo', msg, onUndo, duration: 5000 })
 };

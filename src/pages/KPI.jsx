@@ -1,4 +1,4 @@
-// [#kpi] หน้า KPI — รวม insight ยอดขายไว้ที่เดียว (เลือกเดือนได้)
+// หน้า KPI — รวม insight ยอดขายไว้ที่เดียว (เลือกเดือนได้)
 //   ย้ายการ์ดที่เคยกระจายใน Calendar มารวมที่นี่ + กราฟ + ยอดขายช่วงวันที่
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';

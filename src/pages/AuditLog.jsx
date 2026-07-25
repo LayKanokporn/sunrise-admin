@@ -1,4 +1,4 @@
-// [v0.9] Audit Log — ใครทำอะไร เมื่อไหร่ (#10)
+// Audit Log — ใครทำอะไร เมื่อไหร่ (#10)
 import { useQuery } from '@tanstack/react-query';
 import { useModals } from '../App';
 import { api } from '../lib/api';
@@ -11,7 +11,7 @@ function badgeForBy(by) {
   return 'bg-slate-100 text-slate-600';
 }
 
-// [v0.13] แปลง timestamp เป็นวันเวลาไทย — รองรับ 2 format ที่ GAS ส่งมา:
+// แปลง timestamp เป็นวันเวลาไทย — รองรับ 2 format ที่ GAS ส่งมา:
 //   1) ISO UTC "2569-06-13T04:02:08.000Z" (ปี พ.ศ. + Z) → แปลง UTC เป็นเวลาไทย (+7)
 //   2) Thai "13/06/2569 11:02:08" (เวลาไทยอยู่แล้ว) → จัดรูปใหม่
 const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];

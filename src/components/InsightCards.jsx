@@ -1,4 +1,4 @@
-// [#kpi] Insight cards — ย้ายออกจาก Calendar มารวมที่เดียว ใช้ทั้งหน้า KPI และที่อื่น
+// Insight cards — ย้ายออกจาก Calendar มารวมที่เดียว ใช้ทั้งหน้า KPI และที่อื่น
 //   AOV / Pacing / Channel / TrendChart / RevenueRange + helper computeMonthInsight
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -18,7 +18,7 @@ function parseISO(iso) {
   return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(NaN);
 }
 
-// [#kpi] รวม stat ของเดือน (revenue/aov/channel/pacing) — ใช้ logic เดียวกับ Calendar เดิม
+// รวม stat ของเดือน (revenue/aov/channel/pacing) — ใช้ logic เดียวกับ Calendar เดิม
 export function computeMonthInsight(allOrders, year, month, today, salesGoal) {
   const orders = (allOrders || []).filter((o) => {
     const d = parseISO(o.deliveryDateISO);
@@ -44,7 +44,7 @@ export function computeMonthInsight(allOrders, year, month, today, salesGoal) {
   return { count: valid.length, revenue, aov, lineCount, fbCount, pacing };
 }
 
-// [AOV] ยอดขายเฉลี่ยต่อออเดอร์ของเดือน
+// ยอดขายเฉลี่ยต่อออเดอร์ของเดือน
 export function AovCard({ aov, revenue }) {
   return (
     <div className="card !p-2 sm:!p-3 flex flex-col">

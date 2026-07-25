@@ -1,4 +1,4 @@
-// [v0.8] Global search — ค้นทั่วระบบ debounce 300ms
+// Global search — ค้นทั่วระบบ debounce 300ms
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, Search, Loader2 } from 'lucide-react';

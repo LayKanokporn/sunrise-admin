@@ -1,10 +1,10 @@
-// [v0.1] Production view — รวมเมนูที่ต้องอบ พร้อมเลือกช่วงวัน
+// Production view — รวมเมนูที่ต้องอบ พร้อมเลือกช่วงวัน
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { SkeletonBox } from '../components/Skeleton';
 
-// [v0.7] FIX timezone — use local date components instead of UTC
+// FIX timezone — use local date components instead of UTC
 function fmtISO(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,'0');

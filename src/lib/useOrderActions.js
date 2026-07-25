@@ -1,4 +1,4 @@
-// [v0.9] useOrderActions — central hook ทำทุก action บนออเดอร์
+// useOrderActions — central hook ทำทุก action บนออเดอร์
 //   A1: Optimistic update — UI เปลี่ยนทันที, rollback ถ้า fail
 //   D1: Undo toast — กดผิดเลิกทำได้ 5 วิ
 import { useQueryClient } from '@tanstack/react-query';

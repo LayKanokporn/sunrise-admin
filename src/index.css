@@ -15,13 +15,13 @@
   .badge { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium; }
 }
 
-/* [#density] โหมดกะทัดรัด — การ์ดเล็กลง เห็นได้เยอะขึ้น (เก็บใน prefs) */
+/* โหมดกะทัดรัด — การ์ดเล็กลง เห็นได้เยอะขึ้น (เก็บใน prefs) */
 [data-density="compact"] .card { @apply p-2.5; }
 [data-density="compact"] .order-card { @apply text-xs; }
 [data-density="compact"] .order-card .card-items { @apply hidden; }
 
 
-/* [v0.9] toast slide-in animation */
+/* toast slide-in animation */
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
