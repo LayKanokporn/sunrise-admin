@@ -6,6 +6,7 @@ import { toast } from '../lib/toast';
 import { buzz } from '../lib/haptic';
 import { prefs, usePrefs } from '../lib/prefs';
 import { orderDisplayName } from '../lib/displayName';
+import { needsReview } from './FilterChips';
 
 // copy ข้อความเข้า clipboard + haptic + toast
 function copyText(text, label) {
@@ -146,9 +147,13 @@ export default function OrderCard({
         </div>
       </div>
 
-      {/* โน้ตด่วน — แปะเหลืองเห็นเด่น ไม่ต้องเปิด detail */}
+      {/* โน้ตด่วน — แปะเหลืองเห็นเด่น ไม่ต้องเปิด detail
+          ใบที่บอทเดาข้อมูลให้ (อ่านวันส่ง/ชื่อไม่ชัวร์) ใช้สีส้มเข้มกว่า ให้สะดุดตากว่าโน้ตทั่วไป */}
       {(order.note || '').trim() && (
-        <div className="flex items-start gap-1.5 mb-2 px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+        <div className={'flex items-start gap-1.5 mb-2 px-2 py-1.5 rounded-lg border text-xs ' +
+          (needsReview(order)
+            ? 'bg-orange-100 border-orange-300 text-orange-900 font-medium'
+            : 'bg-amber-50 border-amber-200 text-amber-800')}>
           <span className="shrink-0 font-bold">!</span>
           <span className="whitespace-pre-wrap break-words">{order.note}</span>
         </div>

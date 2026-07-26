@@ -36,16 +36,24 @@ export default function FilterChips({ chips, active, onToggle }) {
 // presets ใช้ซ้ำได้
 export const ORDER_FILTERS = [
   { key: 'urgent',  label: '🚨 ด่วน',       color: 'bg-red-500 text-white border-red-500' },
+  { key: 'review',  label: '⚠️ ต้องตรวจ',   color: 'bg-orange-500 text-white border-orange-500' },
   { key: 'pending', label: '💳 ค้างชำระ',  color: 'bg-amber-500 text-white border-amber-500' },
   { key: 'paid',    label: '✅ ชำระแล้ว',  color: 'bg-emerald-500 text-white border-emerald-500' },
   { key: 'passed',  label: '🎉 ส่งแล้ว',   color: 'bg-slate-500 text-white border-slate-500' }
 ];
+
+// ใบที่บอทอ่านข้อมูลไม่ชัวร์แล้วเดาให้ไปก่อน — ฝั่ง GAS ติดเครื่องหมายไว้ใน note
+// (ใช้ note เพราะคอลัมน์ reviewFlag ไม่มีอยู่จริงใน Sheet ธงเลยเขียนไม่ลง)
+export function needsReview(o) {
+  return /⚠️\s*ตรวจ/.test(String(o?.note || ''));
+}
 
 // utility: apply filters to orders
 export function applyOrderFilters(orders, active) {
   if (!active.size) return orders;
   return orders.filter(o => {
     if (active.has('urgent')  && !o.isUrgent) return false;
+    if (active.has('review')  && !needsReview(o)) return false;
     if (active.has('pending') && (o.paymentStatus || '').toLowerCase() === 'paid') return false;
     if (active.has('paid')    && (o.paymentStatus || '').toLowerCase() !== 'paid') return false;
     if (active.has('passed')  && !o.isPassed) return false;

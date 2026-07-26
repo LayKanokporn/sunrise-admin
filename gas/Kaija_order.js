@@ -1811,6 +1811,49 @@ function getTimestampTH() {
     Utilities.formatDate(now,TIMEZONE,"ss");
 }
 
+// _looksLikeDateText_ — ข้อความนี้หน้าตาเป็น "วันที่" ไม่ใช่ชื่อคน/ร้าน ใช่ไหม
+//   ใช้กันวันที่ไหลไปนั่งในช่องชื่อลูกค้า (เจอจริง: ปฏิทินขึ้น "15 กรกฎาคม 256...")
+function _looksLikeDateText_(s) {
+  var t = String(s||"").trim();
+  if (!t) return false;
+  return /^\d{1,2}\s*[\/\-]\s*\d{1,2}\s*[\/\-]\s*\d{2,4}/.test(t)   // 15/07/2569
+      || /^\d{1,2}\s*[ก-๙.]{2,}\s*\d{4}/.test(t);                    // 15 กรกฎาคม 2569
+}
+
+// _extractHandle_ — ดึงชื่อช่องทาง "Line:PalmJi" / "FB: Thanabodee" จากข้อความ
+//   ใช้เป็นชื่อสำรองเมื่อช่องชื่อลูกค้าใช้ไม่ได้ (ตรงกับที่เว็บทำใน displayName.js)
+function _extractHandle_(s) {
+  var m = String(s||"").match(/((?:FB|Facebook|IG|Line|LINE)\s*[:：]\s*[^\s,|]+)/i);
+  return m ? m[1].replace(/\s*[:：]\s*/, ":").trim() : "";
+}
+
+// เครื่องหมายว่าใบนี้ต้องให้คนมาตรวจ — เก็บใน note เพราะ:
+//   reviewFlag / parsedStatus ไม่มีอยู่ใน COL map -> setByName เขียนไม่ลง Sheet
+//   (บรรทัด `if (map.reviewFlag > 0)` ที่อื่นก็ไม่เคยเป็นจริงด้วยเหตุผลเดียวกัน)
+//   note เขียนลงจริง + API ส่งออกอยู่แล้ว + คนเปิดอ่านแล้วรู้เรื่องทันที
+var REVIEW_MARK_ = "⚠️ ตรวจ";
+
+// _flagReview_ — ติดธงว่าใบนี้ต้องตรวจ พร้อมเหตุผลสั้น ๆ
+//   กันเติมซ้ำถ้าโดนติดธงหลายรอบในใบเดียว
+function _flagReview_(data, reason) {
+  data.parsedStatus = "NEED_REVIEW";
+  data.reviewFlag   = "REVIEW";
+  var note = String(data.note||"");
+  var tag  = REVIEW_MARK_ + (reason ? " " + reason : "");
+  if (note.indexOf(tag) === -1) data.note = note ? (tag + " | " + note) : tag;
+  return data;
+}
+
+// _isValidTHDate_ — วันที่อยู่ในรูป dd/MM/yyyy และค่าอยู่ในช่วงจริงไหม
+//   ห้ามใช้ thDateToDate มาเช็คแทน เพราะ new Date(2026, 12, 32) ไม่ error
+//   แต่ JS ปัดล้นไปเป็น 1 ก.พ. 2027 ให้เอง -> วันเพี้ยนหลุดผ่านไปได้เงียบ ๆ
+function _isValidTHDate_(s) {
+  var m = String(s||"").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return false;
+  var dd = parseInt(m[1],10), mo = parseInt(m[2],10), yy = parseInt(m[3],10);
+  return dd >= 1 && dd <= 31 && mo >= 1 && mo <= 12 && yy >= 2000;
+}
+
 function thDateToDate(s) {
   if (!s) return null;
   var parts = String(s).trim().split("/");
@@ -3011,9 +3054,17 @@ function parseOrder(text) {
   }
 }
 
+// validateOrder_ — เช็คเฉพาะเรื่องที่ "ขาดแล้วบันทึกไม่ได้" เท่านั้น (บล็อกการบันทึก)
+//   เรื่องที่ยังบันทึกได้แต่ควรให้คนมาดู -> ไม่ใส่ตรงนี้ ให้ไปติดธง REVIEW
+//   ใน saveOrderToSheet_ แทน เพราะร้านต้องได้ออเดอร์ไว้ก่อนเสมอ
+//
+//   ลบ `if (!data.deliveryDate)` ออก — เป็นโค้ดตาย ไม่เคยทำงานสักครั้ง
+//   ทุกทางที่เรียกฟังก์ชันนี้ป้อนข้อมูลจาก parser ซึ่ง `|| getTodayTH()` ไปแล้ว
+//   (รวม fallback สุดท้ายใน parseOrder ที่ใส่ getTodayTH() ตรง ๆ)
+//   ปล่อยไว้อันตรายกว่าลบ เพราะทำให้คนอ่านเข้าใจผิดว่ามีด่านตรวจวันที่อยู่
+//   ของจริงอยู่ที่ saveOrderToSheet_ (dateFallback / วันที่อ่านไม่ออก -> NEED_REVIEW)
 function validateOrder_(data) {
   var errors = [];
-  if (!data.deliveryDate)                errors.push("วันที่ส่ง");
   if (!data.channel)                     errors.push("Channel");
   if (!data.orderType)                   errors.push("Order Type");
   if (!data.items || !data.items.length) errors.push("รายการ");
@@ -3074,10 +3125,38 @@ function saveOrderToSheet_(data, rawText, updatedBy) {
   //   -> บันทึกวันผิดโดยไม่มีใครรู้ จนกว่าจะเปิดปฏิทินแล้วเห็นของกองผิดวัน
   //   ตอนนี้ parser ส่ง dateFallback มาด้วย ตรงนี้แปะธงไว้ให้ตามต่อได้
   //   ยังบันทึกให้ตามปกติ ไม่บล็อก เพราะร้านต้องได้ออเดอร์ไว้ก่อน
+  // P3: วันที่ไหลไปนั่งในช่องชื่อลูกค้า (เจอจริง: ปฏิทินขึ้น "15 กรกฎาคม 256...")
+  //   ทำก่อนด่านตรวจวันที่ด้านล่าง เพราะวันที่ในช่องชื่ออาจเป็นวันส่งจริงที่ควรกู้คืน
+  //   ชื่อที่หายไปแทนด้วยชื่อช่องทาง (Line:PalmJi) ซึ่งพอระบุลูกค้าได้
+  if (_looksLikeDateText_(data.customerName)) {
+    var nameWasDate = String(data.customerName).trim();
+    var recovered   = normalizeDateText_(nameWasDate);
+    if (data.dateFallback && _isValidTHDate_(recovered)) {
+      data.deliveryDate = recovered;   // ไม่มีวันส่งที่ดีกว่านี้ -> ใช้ตัวที่พิมพ์มาในช่องชื่อ
+      data.dateFallback = false;
+    }
+    data.customerName = _extractHandle_(data.location) || _extractHandle_(data.note)
+                        || String(data.tableName||"").trim() || "";
+    _flagReview_(data, "ชื่อลูกค้า");
+    Logger.log("[WARN] saveOrderToSheet_ | ชื่อลูกค้าเป็นวันที่ (\""+nameWasDate+"\") -> ใช้ \""+data.customerName+"\" แทน | id="+data.orderId);
+  }
+
   if (data.dateFallback) {
-    data.parsedStatus = "NEED_REVIEW";
-    data.reviewFlag   = "REVIEW";
+    _flagReview_(data, "วันส่ง");
     Logger.log("[WARN] saveOrderToSheet_ | ไม่เจอวันส่งในข้อความ ใช้วันนี้แทน ("+data.deliveryDate+") | id="+data.orderId);
+  }
+
+  // ด่านตรวจวันที่ตัวจริง (ย้ายมาจาก validateOrder_ ที่เป็นโค้ดตาย)
+  //   ตรวจว่า "เป็นวันที่ที่มีอยู่จริง" ไม่ใช่แค่ "มีค่า" — วันเพี้ยนอย่าง 32/13/2569
+  //   หลุดด่าน !data.deliveryDate ได้สบายเพราะมันมีค่าอยู่
+  //   ติดธงอย่างเดียว ไม่บล็อก แล้วดันเป็นวันนี้เพื่อให้ยังเปิดดูในปฏิทินได้
+  //   ค่าเดิมที่พิมพ์มาเก็บไว้ใน note ไม่ทิ้ง คนจะได้เดาออกว่าตั้งใจวันไหน
+  if (!_isValidTHDate_(data.deliveryDate)) {
+    var badDate = String(data.deliveryDate||"");
+    Logger.log("[ERROR] saveOrderToSheet_ | วันส่งไม่ถูกต้อง (\""+badDate+"\") ใช้วันนี้แทน | id="+data.orderId);
+    data.deliveryDate = getTodayTH();
+    data.dateFallback = true;
+    _flagReview_(data, "วันส่ง" + (badDate ? " (พิมพ์มา: "+badDate+")" : ""));
   }
 
   // auto-detect รับหน้าร้าน
