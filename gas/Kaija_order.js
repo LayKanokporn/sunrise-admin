@@ -378,6 +378,102 @@ function ซ่อมวันที่_เขียนจริง() {
   return repairDateInTimeField(true);
 }
 
+// ── สแกนหาแถว/ออเดอร์ที่ข้อมูลผิดรูปในชีท ──
+//   ต่างจากตัวเทียบ parse: อันนี้ไม่ต้องมี rawText ไม่ต้องเทียบกับอะไร
+//   แค่ตรวจว่าข้อมูลผิดกฎที่ข้อมูลถูกต้องต้องผ่าน -> ครอบได้ทุกใบรวมที่แก้มือแล้ว
+//   อ่านอย่างเดียว ไม่แตะข้อมูล
+function ตรวจข้อมูลผิดปกติ() { return auditOrderData_(); }
+
+function auditOrderData_() {
+  var rows = getOrderRows(null, 20000);
+  if (!rows.length) { Logger.log("ไม่มีข้อมูลในชีท"); return { ok:false }; }
+  var groups = groupRowsByOrder(rows);
+
+  var issues = {
+    dateInTime:   { label:"วันที่ไปอยู่ช่องเวลาส่ง",           list:[] },
+    dateInName:   { label:"วันที่ไปอยู่ช่องชื่อลูกค้า",         list:[] },
+    badDate:      { label:"วันส่งไม่ถูกต้อง (อ่านเป็นวันที่ไม่ได้)", list:[] },
+    noName:       { label:"ไม่มีชื่อลูกค้าและไม่มีที่อยู่",      list:[] },
+    ghostRow:     { label:"แถวผี (บรรทัดยอดรวมกลายเป็นเมนู)",  list:[] },
+    totalMismatch:{ label:"ยอดรวมไม่ตรงกับผลรวมรายการ",        list:[] },
+    zeroItem:     { label:"รายการที่จำนวนหรือราคาเป็น 0",       list:[] },
+    dateConflict: { label:"ออเดอร์เดียวกันแต่วันส่งไม่ตรงกัน",  list:[] },
+    unknownMenu:  { label:"เมนูไม่อยู่ในรายการราคา",            list:[] }
+  };
+  var add = function(k, id, detail) { issues[k].list.push(id + " | " + detail); };
+
+  groups.forEach(function(g) {
+    var live = g.rows.filter(function(r){ return !isRowCancelled(r); });
+    if (!live.length) return;                       // ใบที่ยกเลิกแล้วไม่ต้องตรวจ
+    var main = live.find(function(r){ return toNumber(r.grandTotal)>0; }) || live[0];
+    var id   = g.orderId;
+
+    if (_dateFromTimeField_(main.deliveryTime))
+      add("dateInTime", id, "เวลาส่ง=\""+main.deliveryTime+"\"");
+    if (_looksLikeDateText_(main.customerName))
+      add("dateInName", id, "ชื่อ=\""+main.customerName+"\"");
+    if (!_isValidTHDate_(normalizeDateText_(main.deliveryDate)))
+      add("badDate", id, "วันส่ง=\""+main.deliveryDate+"\"");
+    if (!String(main.customerName||"").trim() && !String(main.tableName||"").trim()
+        && !String(main.location||"").trim())
+      add("noName", id, "วันส่ง "+main.deliveryDate);
+
+    // วันส่งต้องเหมือนกันทุกแถวของออเดอร์เดียวกัน
+    var dset = {};
+    live.forEach(function(r){ if (r.deliveryDate) dset[String(r.deliveryDate)] = true; });
+    var dkeys = Object.keys(dset);
+    if (dkeys.length > 1) add("dateConflict", id, dkeys.join(" / "));
+
+    var food = 0, hasGhost = false;
+    live.forEach(function(r) {
+      var menu = cleanMenuName_(r.menuName);
+      if (!menu) return;
+      if (menu === "รวม" || menu === "รวมทั้งหมด") {
+        hasGhost = true;
+        add("ghostRow", id, "แถว "+r.rowNumber+" เมนู=\""+menu+"\" ยอด="+toNumber(r.itemTotal));
+        return;                                     // แถวผีไม่นับเข้ายอดอาหาร
+      }
+      food += toNumber(r.itemTotal);
+      if (toNumber(r.qty) <= 0 || toNumber(r.unitPrice) <= 0)
+        add("zeroItem", id, menu+" qty="+r.qty+" ราคา="+r.unitPrice);
+      if (!isKnownMenu_(menu)) add("unknownMenu", id, menu);
+    });
+
+    // เทียบยอดเฉพาะใบที่ไม่มีแถวผี ไม่งั้นจะรายงานซ้ำเรื่องเดียวกัน
+    if (!hasGhost) {
+      var expect = food + toNumber(main.deliveryFee);
+      var actual = toNumber(main.grandTotal);
+      if (actual > 0 && Math.abs(expect - actual) > 1)
+        add("totalMismatch", id, "ในชีท "+actual+" | ผลรวมรายการ+ค่าส่ง "+expect
+                                 +" | ต่าง "+(actual-expect));
+    }
+  });
+
+  Logger.log("=== ตรวจข้อมูลผิดปกติ ===");
+  Logger.log("ตรวจ "+groups.length+" ออเดอร์ ("+rows.length+" แถว)");
+  Logger.log("");
+  var total = 0;
+  Object.keys(issues).forEach(function(k) {
+    var n = issues[k].list.length; total += n;
+    Logger.log((n ? "❌ " : "✅ ") + issues[k].label + " : " + n);
+  });
+  Logger.log("");
+  Logger.log("รวมจุดที่ต้องดู "+total+" จุด");
+
+  Object.keys(issues).forEach(function(k) {
+    var list = issues[k].list;
+    if (!list.length) return;
+    Logger.log("");
+    Logger.log("--- "+issues[k].label+" ("+list.length+") ---");
+    list.slice(0, 30).forEach(function(s){ Logger.log("  "+s); });
+    if (list.length > 30) Logger.log("  ... อีก "+(list.length-30));
+  });
+
+  var counts = {};
+  Object.keys(issues).forEach(function(k){ counts[k] = issues[k].list.length; });
+  return { ok:true, orders:groups.length, rows:rows.length, total:total, counts:counts };
+}
+
 // ── ลบ "แถวผี" ที่บรรทัดยอดรวมถูกบันทึกเป็นเมนู ──
 //   เกิดจากบั๊ก /รวม\b/ ที่ใช้ \b กับอักษรไทยไม่ได้ -> บรรทัด "รวม 1,600฿"
 //   หลุดเข้าไปเป็นเมนูชื่อ "รวม" (เห็นใน plan 7 เป็น "- รวม 1 วง")
