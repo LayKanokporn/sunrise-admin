@@ -345,8 +345,22 @@ function _dateFromTimeField_(value) {
   return "";
 }
 
+// ── ปุ่มลัดสำหรับรันจาก dropdown ใน Apps Script editor ──
+//   Apps Script ส่ง argument ผ่านปุ่ม Run ไม่ได้ (รันได้เฉพาะฟังก์ชันที่ไม่มีพารามิเตอร์)
+//   จึงต้องมี wrapper 2 ตัวนี้ให้เลือกจาก dropdown ได้ตรง ๆ
+
+// ดูอย่างเดียว ไม่เขียนอะไร — รันตัวนี้ก่อนเสมอ
+function ซ่อมวันที่_ดูก่อน() {
+  return repairDateInTimeField(false);
+}
+
+// เขียนจริงลง Sheet — รันหลังจากดู log ของตัวบนแล้วว่าถูกต้อง
+function ซ่อมวันที่_เขียนจริง() {
+  return repairDateInTimeField(true);
+}
+
 // _createdDateFromOrderId_ — ดึงวันที่สร้างจาก ORD-DDMMYYYY-HHMMSS คืนเป็น dd/MM/yyyy BE
-//   ใช้เช็คความสมเหตุสมผล: วันส่งที่อยู่ก่อนวันสร้างออเดอร์ = น่าสงสัย
+//   ใช้แสดงบริบทในรายงาน (ร้านกรอกออเดอร์ย้อนหลังได้ ไม่ถือว่าผิด)
 function _createdDateFromOrderId_(orderId) {
   var m = String(orderId||"").match(/ORD-(\d{2})(\d{2})(\d{4})/);
   if (!m) return "";
@@ -356,7 +370,8 @@ function _createdDateFromOrderId_(orderId) {
 }
 
 // ซ่อมข้อมูลเก่าที่วันที่ไปค้างอยู่ช่อง "เวลาส่ง" (ใบที่บันทึกก่อน FIX 26/07)
-//   รันใน Apps Script editor:
+//   รันผ่าน wrapper ด้านบน: ซ่อมวันที่_ดูก่อน() -> ซ่อมวันที่_เขียนจริง()
+//   (เรียกตรงก็ได้ถ้าอยู่ใน code:)
 //     repairDateInTimeField()      → dry-run ดูอย่างเดียว ไม่เขียนอะไร
 //     repairDateInTimeField(true)  → เขียนจริง
 //   ยึดตามวันที่ที่ผู้ใช้กรอกเสมอ รวมถึงวันย้อนหลัง (ร้านกรอกย้อนหลังเก็บตกข้อมูลได้)
