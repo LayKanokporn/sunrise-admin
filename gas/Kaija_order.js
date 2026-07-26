@@ -406,7 +406,11 @@ function compareParseWithSheet_(limitOrders) {
     for (var k = 0; k < g.rows.length && !raw; k++) raw = String(g.rows[k].rawText||"").trim();
     if (!raw) { noRaw++; continue; }
     // ใบที่ถูกแก้ทีหลัง ชีทจะต่างจาก rawText โดยตั้งใจ -> ไม่นับเป็นความผิดพลาด
-    if (String(main.lastUpdatedBy||"").trim()) { edited++; continue; }
+    //   ห้ามเช็คแค่ "มี lastUpdatedBy" — saveOrderToSheet_ เซ็ตมันตั้งแต่ตอนสร้าง
+    //   (updatedBy||"system") ทุกใบจึงมีค่า -> เคยกรองทิ้ง 348/383 ใบ เหลือตรวจ 0
+    //   ตัวชี้จริงคือ lastUpdatedAt ขยับไปจาก timestamp (ตอนสร้างสองค่านี้เท่ากัน)
+    var ts = String(main.timestamp||"").trim(), up = String(main.lastUpdatedAt||"").trim();
+    if (ts && up && ts !== up) { edited++; continue; }
 
     checked++;
     var p;
