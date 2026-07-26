@@ -869,11 +869,21 @@ function buildSaveSuccessText_(data, orderId) {
     "",
     "Order ID: "+orderId,
     "ลูกค้า: "+(data.customerName||data.tableName||"-"),
-    "วันที่ส่ง: "+(data.deliveryDate||"-"),
+    "วันที่ส่ง: "+formatDateWithDay_(data.deliveryDate),
     "รวม: "+toNumber(data.grandTotal).toLocaleString()+"฿",
     "ครัว: "+(data.kitchenStatus||"รอทำ")
   ];
   if (isUrgent) lines.push("⚡ สถานะ: URGENT — แสดงเด่นใน plan/summary");
+
+  // P1: อ่านวันส่งไม่ออก -> เตือนตรงนี้เลย ตอนที่คนยังจำได้ว่าตั้งใจวันไหน
+  //   ถ้าปล่อยผ่าน กว่าจะรู้ก็ตอนเปิดปฏิทินแล้วเห็นของกองผิดวัน ซึ่งสายไปแล้ว
+  if (data.dateFallback) {
+    lines.push("",
+      "⚠️ ไม่เจอวันส่งในข้อความ",
+      "ใช้ "+formatDateWithDay_(data.deliveryDate)+" (วันนี้) ไปก่อน",
+      "ถ้าไม่ใช่ พิมพ์:",
+      "edit "+orderId+" วันที่ส่ง=27/07/2569");
+  }
 
   // แจ้งเตือนเมนูที่ไม่รู้จัก
   var unknownMenus = (data.items||[]).filter(function(it){ return it.reviewFlag==="REVIEW"; }).map(function(it){ return it.menuName; });
@@ -1277,6 +1287,7 @@ function parseShortCafeOrder_(text) {
     orderId:       generateOrderId_(),
     deliveryDate:  deliveryDateStr || getTodayTH(),
     paymentDate:   deliveryDateStr || getTodayTH(),
+    dateFallback:  !deliveryDateStr,
     customerName:  customer || "",
     tableName:     customer || "LINE Customer",
     phone:         "",
@@ -1332,6 +1343,7 @@ function parseShortCalculatedOrder_(text) {
     orderId:      generateOrderId_(),
     deliveryDate: deliveryDateStr || getTodayTH(),
     paymentDate:  deliveryDateStr || getTodayTH(),
+    dateFallback: !deliveryDateStr,
     customerName: customer || "",
     tableName:    customer || "",
     phone:"", channel:"LINE", orderType:"Wholesale",
@@ -1381,6 +1393,7 @@ function parseLooseHeaderOrder_(text) {
     orderId:      generateOrderId_(),
     deliveryDate: deliveryDateStr || getTodayTH(),
     paymentDate:  deliveryDateStr || getTodayTH(),
+    dateFallback: !deliveryDateStr,
     customerName: taggedName || "",
     tableName:    taggedName || "",
     phone:"", channel:"LINE", orderType:"Wholesale",
@@ -1436,6 +1449,7 @@ function parseManualSummaryOrder_(text) {
     orderId:      generateOrderId_(),
     deliveryDate: deliveryDateStr || getTodayTH(),
     paymentDate:  deliveryDateStr || getTodayTH(),
+    dateFallback: !deliveryDateStr,
     customerName: customer || "",
     tableName:    customer || "",
     phone:"", channel:"LINE", orderType:"Wholesale",
@@ -1556,6 +1570,7 @@ function parsePaymentAddressOrder_(text) {
       orderId:      generateOrderId_(),
       deliveryDate: deliveryDateStr || getTodayTH(),
       paymentDate:  deliveryDateStr || getTodayTH(),
+      dateFallback: !deliveryDateStr,
       customerName: customerVal || "",
       tableName:    customerVal || "",
       phone:        phoneVal,
@@ -1771,6 +1786,19 @@ function normalizeMonthInput(value) {
   if (yyyy < 100) yyyy += 2000;
   if (yyyy < 2400) yyyy += 543;
   return mm + "/" + yyyy;
+}
+
+// P2: เติมชื่อวันไทยหน้าวันที่ -> "วันอาทิตย์ 26/07/2569"
+//   คนอ่าน "26/07/2569" เฉย ๆ ผ่านตาไม่ทัน แต่พอเห็นชื่อวันจะสะดุดทันที
+//   ถ้าไม่ตรงกับที่ตั้งใจ ("อ้าว วันอาทิตย์เหรอ สั่งวันเสาร์นี่")
+//   ระบบมีข้อมูลครบอยู่แล้ว แค่ไม่เคยเอามาช่วยคนตรวจ
+var THAI_DAY_NAMES_ = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
+function formatDateWithDay_(thDate) {
+  var s = String(thDate||"").trim();
+  if (!s) return "-";
+  var d = thDateToDate(s);
+  if (!d) return s;
+  return "วัน" + THAI_DAY_NAMES_[d.getDay()] + " " + s;
 }
 
 function getTodayTH()     { return formatDateTH(new Date()); }
@@ -2380,7 +2408,13 @@ function appendMessageLog_(event, text, resolvedText, intent, handledBy) {
 // QUICK REPLY
 // ============================================================
 // เพิ่มปุ่ม urgent ใน quick reply หลัง save → admin กดได้ทันที
-function qrAfterSave(orderId) { return ["เพิ่มเมนู "+orderId,"แก้ "+orderId,"urgent "+orderId,"↩️ เลิกทำ","plan 7"]; }
+// dateFallback = อ่านวันส่งไม่ออก -> ดันปุ่ม "แก้" ขึ้นมาเป็นปุ่มแรก
+//   ใช้คำสั่งเดิมที่มี handler อยู่แล้ว ไม่สร้างปุ่มที่บอทไม่รู้จัก
+//   param ที่ 2 ไม่ส่งมาก็ได้ (undefined = falsy) ที่เรียกอยู่เดิมจึงไม่กระทบ
+function qrAfterSave(orderId, dateFallback) {
+  if (dateFallback) return ["แก้ "+orderId,"เพิ่มเมนู "+orderId,"urgent "+orderId,"↩️ เลิกทำ","plan 7"];
+  return ["เพิ่มเมนู "+orderId,"แก้ "+orderId,"urgent "+orderId,"↩️ เลิกทำ","plan 7"];
+}
 function qrAfterSearch(keyword) {
   var base = ["search today","summary","summary 7","help"];
   if (keyword) base.unshift("search "+keyword);
@@ -3033,6 +3067,18 @@ function saveOrderToSheet_(data, rawText, updatedBy) {
   data.kitchenStatus= data.kitchenStatus|| "รอทำ";
   data.patternType  = data.patternType  || "unknown";
   data.parsedStatus = data.parsedStatus || "OK";
+
+  // P1: parse วันไม่ออก = ต้องดัง ห้ามเงียบ
+  //   เดิม parser ทำ `deliveryDateStr || getTodayTH()` แล้วจบ ระบบเลยมองว่า
+  //   "อ่านวันไม่ออก" กับ "ลูกค้าบอกว่าวันนี้" เป็นเรื่องเดียวกัน
+  //   -> บันทึกวันผิดโดยไม่มีใครรู้ จนกว่าจะเปิดปฏิทินแล้วเห็นของกองผิดวัน
+  //   ตอนนี้ parser ส่ง dateFallback มาด้วย ตรงนี้แปะธงไว้ให้ตามต่อได้
+  //   ยังบันทึกให้ตามปกติ ไม่บล็อก เพราะร้านต้องได้ออเดอร์ไว้ก่อน
+  if (data.dateFallback) {
+    data.parsedStatus = "NEED_REVIEW";
+    data.reviewFlag   = "REVIEW";
+    Logger.log("[WARN] saveOrderToSheet_ | ไม่เจอวันส่งในข้อความ ใช้วันนี้แทน ("+data.deliveryDate+") | id="+data.orderId);
+  }
 
   // auto-detect รับหน้าร้าน
   if (isPickupDelivery_(data.location||data.deliveryType||"")) {
@@ -6873,7 +6919,7 @@ function handleGuidedOrderStep(replyToken, userId, text, state) {
         clearUserState(userId);
         if (ENABLE_PUSH_NEW_ORDER) pushNotifyText_("🆕 ออเดอร์ใหม่ (แยกใบ)\nOrder: "+ovData.orderId+"\nลูกค้า: "+(ovData.customerName||"-"));
         var newOid2 = saveOrderToSheet_(ovData, state.rawOrderText||"", userId||"line");
-        replyLineWithQuickReply(replyToken, buildSaveSuccessText_(ovData, newOid2), qrAfterSave(newOid2));
+        replyLineWithQuickReply(replyToken, buildSaveSuccessText_(ovData, newOid2), qrAfterSave(newOid2, ovData.dateFallback));
         return true;
       }
       // ➕ เพิ่มเข้าใบเดิม (append items)
@@ -7269,7 +7315,7 @@ function doPost(e) {
               recordUndo_({type:"save", orderId:oid, label:"บันทึก "+(orderData.customerName||"-")}); //
               try { dbg_("SAVE", "บันทึกสำเร็จ "+oid, {customer:orderData.customerName, total:toNumber(orderData.grandTotal), items:(orderData.items||[]).length, pat:patLabel}); } catch(_d){}
               var successText = buildSaveSuccessText_(orderData, oid);
-              replyLineWithQuickReply(replyToken, successText, qrAfterSave(oid));
+              replyLineWithQuickReply(replyToken, successText, qrAfterSave(oid, orderData.dateFallback));
               appendMessageLog_(event,text,effectiveText,"order_saved","save");
               return oid;
             }
@@ -7348,7 +7394,7 @@ function doPost(e) {
               if (ENABLE_PUSH_NEW_ORDER) pushNotifyText_("🆕 ออเดอร์ใหม่ (force dup)\nOrder ID: "+dupData.orderId);
               var dupOid = saveOrderToSheet_(dupData, state4b.rawOrderText, userId||"line");
               clearUserState(userId);
-              replyLineWithQuickReply(replyToken, buildSaveSuccessText_(dupData, dupOid), qrAfterSave(dupOid));
+              replyLineWithQuickReply(replyToken, buildSaveSuccessText_(dupData, dupOid), qrAfterSave(dupOid, dupData.dateFallback));
             } else {
               replyLineWithQuickReply(replyToken,"ไม่พบข้อมูลออเดอร์เดิมค่ะ",QR_MAIN);
             }
