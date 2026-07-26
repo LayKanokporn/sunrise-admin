@@ -430,7 +430,10 @@ function compareParseWithSheet_(limitOrders) {
     var rid = g.orderId, rraw = raw.substring(0,90).replace(/\n/g," ");
     function mk(o, n) { return { id:rid, raw:rraw, old:o, neu:n }; }
     var hit = false;
-    if (oldDate !== newDate)         { diffs.deliveryDate.push(mk(oldDate,newDate)); hit=true; }
+    // ข้ามการเทียบวันเมื่อ parse ใหม่ไม่เจอวันในข้อความแล้ว fallback เป็น "วันนี้"
+    //   เทียบไม่ได้จริง เพราะ "วันนี้" ตอนรันย่อมต่างจากตอนบันทึกเสมอ
+    //   (ไม่ใช่บั๊ก — เป็นผลจากการ re-parse คนละวัน)
+    if (!p.dateFallback && oldDate !== newDate) { diffs.deliveryDate.push(mk(oldDate,newDate)); hit=true; }
     if (oldName !== newName)         { diffs.customerName.push(mk(oldName,newName)); hit=true; }
     if (Math.abs(oldTot-newTot) > 1) { diffs.grandTotal.push(mk(oldTot,newTot));     hit=true; }
     if (oldCnt !== newCnt)           { diffs.itemCount.push(mk(oldCnt,newCnt));      hit=true; }
@@ -2945,7 +2948,12 @@ function parseItemsFlexible_(text) {
 
   for (var i = 0; i < lines.length; i++) {
     var s = _stripLineNoise_(lines[i]); if (!s) continue;
-    if (/^(ออเดอร์รอบส่ง|รอบส่ง|ออเดอร์\s|รวม\b|ค่าส่ง\b|@|\()/i.test(s)) continue;
+    // ห้ามใช้ \b ต่อท้ายอักษรไทย — JS นิยาม word char เป็น [A-Za-z0-9_] เท่านั้น
+    //   "ม" กับ " " ไม่ใช่ word char ทั้งคู่ จึงไม่มี boundary -> /รวม\b/ ไม่เคย match
+    //   ผลคือบรรทัด "รวม 1,600฿" หลุดเข้าไปเป็นเมนูชื่อ "รวม"
+    //   (เห็นใน plan 7 เป็น "- รวม 1 วง" ปนอยู่กับรายการเค้กจริง)
+    //   ใช้ (?![ก-๙]) แทน: กัน "รวม"/"รวมทั้งหมด"/"ค่าส่ง" แต่ปล่อยชื่อเมนูจริงอย่าง "รวมมิตร"
+    if (/^(ออเดอร์รอบส่ง|รอบส่ง|ออเดอร์\s|รวม(ทั้งหมด)?(?![ก-๙])|ค่าส่ง(?![ก-๙])|@|\()/i.test(s)) continue;
     if (/(เบอร์|โทร|ที่อยู่|tel|phone|address|รหัสไปรษณีย์|หมู่บ้าน|เลขที่|ซอย|ถนน|ตำบล|อำเภอ|จังหวัด|เวลา|วันที่|note|หมายเหตุ|channel|ส่งที่|เวลาจัดส่ง|โน๊ต|โน้ต|ข้อความ)\s*[\u2026:：\.]/i.test(s)) continue;
 
     var addonItem = parseAddonItem_(s);
