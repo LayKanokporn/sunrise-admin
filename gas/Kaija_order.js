@@ -378,6 +378,137 @@ function ซ่อมวันที่_เขียนจริง() {
   return repairDateInTimeField(true);
 }
 
+// ── ลบ "แถวผี" ที่บรรทัดยอดรวมถูกบันทึกเป็นเมนู ──
+//   เกิดจากบั๊ก /รวม\b/ ที่ใช้ \b กับอักษรไทยไม่ได้ -> บรรทัด "รวม 1,600฿"
+//   หลุดเข้าไปเป็นเมนูชื่อ "รวม" (เห็นใน plan 7 เป็น "- รวม 1 วง")
+//   แก้ที่ parser แล้ว แต่กันได้แค่ใบใหม่ ใบเก่าต้องมาลบตรงนี้
+//   จับ "ชื่อเมนูตรงเป๊ะ" เท่านั้น ไม่แตะ "ค่าจัดส่ง"/"ค่าส่ง" เพราะอาจเป็นรายการที่ตั้งใจใส่
+var GHOST_MENU_NAMES_ = ["รวม","รวมทั้งหมด"];
+
+function ลบแถวรวมผี_ดูก่อน() { return deleteGhostTotalRows_(false); }
+function ลบแถวรวมผี_ลบจริง() { return deleteGhostTotalRows_(true); }
+
+function deleteGhostTotalRows_(apply) {
+  var sheet = getSheet();
+  var map   = getHeaderMap_();
+  if (!map.menuName) { Logger.log("[ERROR] ไม่เจอคอลัมน์ Menu Name"); return { ok:false }; }
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { ok:true, found:0 };
+
+  var width = sheet.getLastColumn();
+  var all   = sheet.getRange(2, 1, lastRow-1, width).getValues();
+  var col   = function(r, name) { var c = map[name]; return c > 0 ? String(r[c-1]||"").trim() : ""; };
+
+  var ghostSet = {};
+  GHOST_MENU_NAMES_.forEach(function(n){ ghostSet[n] = true; });
+
+  var hits = [];
+  for (var i = 0; i < all.length; i++) {
+    var menu = cleanMenuName_(col(all[i], "menuName"));
+    if (!ghostSet[menu]) continue;
+    hits.push({ row:i+2, id:col(all[i],"orderId"), cust:col(all[i],"customerName"),
+                date:col(all[i],"deliveryDate"), menu:menu,
+                qty:col(all[i],"qty"), itemTotal:col(all[i],"itemTotal"), raw:all[i] });
+  }
+
+  Logger.log("=== ลบแถวผี (บรรทัดยอดรวมที่กลายเป็นเมนู) === apply="+(apply===true));
+  Logger.log("ชื่อที่ถือว่าเป็นแถวผี: "+GHOST_MENU_NAMES_.join(", "));
+  Logger.log("เจอ "+hits.length+" แถว");
+  hits.slice(0, 60).forEach(function(h) {
+    Logger.log("  แถว "+h.row+" | "+h.id+" | "+h.cust+" | วันส่ง "+h.date
+               +" | เมนู \""+h.menu+"\" qty="+h.qty+" ยอดรายการ="+h.itemTotal);
+  });
+  if (hits.length > 60) Logger.log("  ... อีก "+(hits.length-60)+" แถว");
+
+  // ถ้าแถวผีมียอดเงินติดมาด้วย การลบจะกระทบยอดรวม -> ต้องเตือนให้เห็นก่อน
+  var withMoney = hits.filter(function(h){ return toNumber(h.itemTotal) > 0; });
+  if (withMoney.length) {
+    Logger.log("");
+    Logger.log("⚠️ มี "+withMoney.length+" แถวที่มียอดเงินติดอยู่ — ลบแล้วยอดรวมของใบนั้นอาจเปลี่ยน");
+    Logger.log("   ดูให้ชัวร์ก่อนว่าเป็นแถวผีจริง ไม่ใช่รายการที่ตั้งใจใส่");
+  }
+
+  if (apply !== true) {
+    Logger.log("");
+    Logger.log("[DRY-RUN] ยังไม่ลบอะไร — ถ้าถูกต้องแล้วสั่ง: ลบแถวรวมผี_ลบจริง()");
+    return { ok:true, dryRun:true, rows:hits.length, withMoney:withMoney.length };
+  }
+
+  Logger.log("--- สำเนาข้อมูลก่อนลบ (กู้คืนได้จากตรงนี้) ---");
+  hits.forEach(function(h){ Logger.log("  แถว "+h.row+" | "+JSON.stringify(h.raw)); });
+
+  hits.sort(function(a,b){ return b.row - a.row; }); // ลบจากล่างขึ้นบน กันเลขแถวเลื่อน
+  hits.forEach(function(h){ sheet.deleteRow(h.row); });
+  clearSheetCache();
+  Logger.log("ลบแล้ว "+hits.length+" แถว");
+  return { ok:true, dryRun:false, rows:hits.length };
+}
+
+// ── ลบข้อมูลทดสอบช่วงแรกออกจากชีท ──
+//   ชื่อที่ถือว่าเป็นข้อมูลทดสอบ — แก้รายการนี้ได้ถ้าเจอเพิ่ม
+//   จับแบบ "ชื่อลูกค้าตรงเป๊ะ" เท่านั้น ไม่ใช้ indexOf กันไปโดนลูกค้าจริง
+//   ที่ชื่อมีคำเหล่านี้ปนอยู่ (เช่น "ร้านเทสโก้" ต้องไม่โดน)
+var TEST_CUSTOMER_NAMES_ = ["เทส","เทสต์","ทดสอบ","test","Test","TEST","เลย์","เลย?์","เลย"];
+
+function ลบข้อมูลทดสอบ_ดูก่อน()  { return deleteTestOrders_(false); }
+function ลบข้อมูลทดสอบ_ลบจริง()  { return deleteTestOrders_(true); }
+
+function deleteTestOrders_(apply) {
+  var sheet = getSheet();
+  var map   = getHeaderMap_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { ok:true, found:0 };
+
+  var width = sheet.getLastColumn();
+  var all   = sheet.getRange(2, 1, lastRow-1, width).getValues();
+  var col   = function(r, name) { var c = map[name]; return c > 0 ? String(r[c-1]||"").trim() : ""; };
+
+  var nameSet = {};
+  TEST_CUSTOMER_NAMES_.forEach(function(n){ nameSet[n.toLowerCase()] = true; });
+
+  var hits = [];
+  for (var i = 0; i < all.length; i++) {
+    var cust  = col(all[i], "customerName");
+    var table = col(all[i], "tableName");
+    if (!nameSet[cust.toLowerCase()] && !nameSet[table.toLowerCase()]) continue;
+    hits.push({ row:i+2, id:col(all[i],"orderId"), cust:cust||table,
+                date:col(all[i],"deliveryDate"), menu:col(all[i],"menuName"),
+                total:col(all[i],"grandTotal"), raw:all[i] });
+  }
+
+  // สรุปเป็นรายออเดอร์ให้เห็นภาพก่อน ไม่ใช่กองแถวดิบ
+  var byOrder = {};
+  hits.forEach(function(h){ (byOrder[h.id] = byOrder[h.id] || []).push(h); });
+  var oids = Object.keys(byOrder);
+
+  Logger.log("=== ลบข้อมูลทดสอบ === apply="+(apply===true));
+  Logger.log("ชื่อที่ถือว่าเป็นข้อมูลทดสอบ: "+TEST_CUSTOMER_NAMES_.join(", "));
+  Logger.log("เจอ "+hits.length+" แถว | "+oids.length+" ออเดอร์");
+  oids.forEach(function(oid) {
+    var g = byOrder[oid];
+    Logger.log("  "+oid+" | "+g[0].cust+" | วันส่ง "+g[0].date+" | "+g.length+" แถว | ยอด "+g[0].total);
+    g.forEach(function(h){ Logger.log("      แถว "+h.row+" : "+h.menu); });
+  });
+
+  if (apply !== true) {
+    Logger.log("");
+    Logger.log("[DRY-RUN] ยังไม่ลบอะไร — ตรวจรายการข้างบนให้ชัวร์ว่าไม่มีออเดอร์จริงปนมา");
+    Logger.log("ถ้าถูกต้องแล้วสั่ง: ลบข้อมูลทดสอบ_ลบจริง()");
+    return { ok:true, dryRun:true, rows:hits.length, orders:oids.length };
+  }
+
+  // เก็บข้อมูลเต็มลง log ก่อนลบ — ลบแล้วกู้จากตรงนี้ได้ถ้าพลาด
+  Logger.log("--- สำเนาข้อมูลก่อนลบ (กู้คืนได้จากตรงนี้) ---");
+  hits.forEach(function(h){ Logger.log("  แถว "+h.row+" | "+JSON.stringify(h.raw)); });
+
+  // ลบจากล่างขึ้นบน ไม่งั้นเลขแถวจะเลื่อนหลังลบแถวแรก
+  hits.sort(function(a,b){ return b.row - a.row; });
+  hits.forEach(function(h){ sheet.deleteRow(h.row); });
+  clearSheetCache();
+  Logger.log("ลบแล้ว "+hits.length+" แถว ("+oids.length+" ออเดอร์)");
+  return { ok:true, dryRun:false, rows:hits.length, orders:oids.length };
+}
+
 // ── เทียบผล parse ใหม่ กับข้อมูลที่บันทึกไว้ในชีท ──
 //   ชีทเก็บ rawText (ข้อความ LINE ต้นฉบับ) ไว้ทุกแถว = ชุดทดสอบจากงานจริง
 //   เอามา parse ด้วยโค้ดปัจจุบันแล้วเทียบ จะเห็น 2 อย่าง:
