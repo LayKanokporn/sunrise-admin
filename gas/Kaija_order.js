@@ -498,23 +498,49 @@ function deleteGhostTotalRows_(apply) {
   var ghostSet = {};
   GHOST_MENU_NAMES_.forEach(function(n){ ghostSet[n] = true; });
 
-  var hits = [];
+  // นับก่อนว่าออเดอร์แต่ละใบมีกี่แถว — ห้ามลบแถวสุดท้ายของใบ ไม่งั้นออเดอร์หายทั้งใบ
+  //   เคสจริง: บางใบ parser จับรายการจริงไม่ได้เลย เหลือแต่บรรทัด "รวม" แถวเดียว
+  //   (เห็นใน plan 7 เป็น "Unsleep to sleep cafe / - รวม 1 วง" ไม่มีเมนูอื่น)
+  //   ใบพวกนี้ข้อมูลพร่องอยู่แล้ว แต่ยังต้องเก็บไว้เป็นหลักฐานว่ามีออเดอร์
+  var rowsPerOrder = {};
+  for (var a = 0; a < all.length; a++) {
+    var oid0 = col(all[a], "orderId");
+    if (oid0) rowsPerOrder[oid0] = (rowsPerOrder[oid0] || 0) + 1;
+  }
+
+  var hits = [], kept = [];
+  var ghostPerOrder = {};
   for (var i = 0; i < all.length; i++) {
     var menu = cleanMenuName_(col(all[i], "menuName"));
     if (!ghostSet[menu]) continue;
-    hits.push({ row:i+2, id:col(all[i],"orderId"), cust:col(all[i],"customerName"),
+    var oid = col(all[i], "orderId");
+    ghostPerOrder[oid] = (ghostPerOrder[oid] || 0) + 1;
+    var rec = { row:i+2, id:oid, cust:col(all[i],"customerName"),
                 date:col(all[i],"deliveryDate"), menu:menu,
-                qty:col(all[i],"qty"), itemTotal:col(all[i],"itemTotal"), raw:all[i] });
+                qty:col(all[i],"qty"), itemTotal:col(all[i],"itemTotal"), raw:all[i] };
+    // ถ้าลบแถวผีทั้งหมดของใบนี้แล้วไม่เหลือแถวเลย -> เก็บไว้ ไม่ลบ
+    if ((rowsPerOrder[oid] || 0) - ghostPerOrder[oid] <= 0) { kept.push(rec); continue; }
+    hits.push(rec);
   }
 
   Logger.log("=== ลบแถวผี (บรรทัดยอดรวมที่กลายเป็นเมนู) === apply="+(apply===true));
   Logger.log("ชื่อที่ถือว่าเป็นแถวผี: "+GHOST_MENU_NAMES_.join(", "));
-  Logger.log("เจอ "+hits.length+" แถว");
+  Logger.log("จะลบ "+hits.length+" แถว | เก็บไว้ไม่ลบ "+kept.length+" แถว");
   hits.slice(0, 60).forEach(function(h) {
     Logger.log("  แถว "+h.row+" | "+h.id+" | "+h.cust+" | วันส่ง "+h.date
                +" | เมนู \""+h.menu+"\" qty="+h.qty+" ยอดรายการ="+h.itemTotal);
   });
   if (hits.length > 60) Logger.log("  ... อีก "+(hits.length-60)+" แถว");
+
+  if (kept.length) {
+    Logger.log("");
+    Logger.log("--- เก็บไว้ไม่ลบ: เป็นแถวเดียวที่เหลือของออเดอร์ ลบแล้วใบจะหายทั้งใบ ---");
+    kept.slice(0, 40).forEach(function(h) {
+      Logger.log("  แถว "+h.row+" | "+h.id+" | "+h.cust+" | วันส่ง "+h.date);
+    });
+    if (kept.length > 40) Logger.log("  ... อีก "+(kept.length-40)+" แถว");
+    Logger.log("ใบพวกนี้ parser จับรายการจริงไม่ได้เลย ควรเปิดดู rawText แล้วแก้มือ");
+  }
 
   // ถ้าแถวผีมียอดเงินติดมาด้วย การลบจะกระทบยอดรวม -> ต้องเตือนให้เห็นก่อน
   var withMoney = hits.filter(function(h){ return toNumber(h.itemTotal) > 0; });
