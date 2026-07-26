@@ -320,29 +320,45 @@ function normalizeDateText_(value) {
   return s;
 }
 
-// _dateFromTimeField_ — ช่อง "เวลาส่ง" มีวันที่ปนมาไหม? คืน dd/MM/yyyy (BE) ถ้าใช่ ไม่ใช่คืน ""
-//   ใช้กู้เคสที่ user พิมพ์วันส่งลงตำแหน่งที่ parser จับเป็นเวลา
-//   กันชนกับค่าเวลาที่ถูกต้องก่อน (10:00 / รอบเช้า / 0.4375) แล้วค่อยลองอ่านเป็นวันที่
+// _splitDateTimeField_ — แยกช่อง "เวลาส่ง" ที่มีวันที่ปนมา คืน {date, time}
+//   date = dd/MM/yyyy (BE) ถ้าอ่านวันที่ได้ / time = HH:MM ที่ปนอยู่ในก้อนเดียวกัน
+//   เคสจริง "09 สิงหาคม 2569 เวลา 10:00 น." มีทั้งวันและเวลา ต้องเก็บเวลาไว้ ห้ามล้างทิ้ง
+//   ถ้าไม่ใช่วันที่เลย คืน {date:"", time:""} = ปล่อยค่าเดิมไว้ไม่ต้องแตะ
+function _splitDateTimeField_(value) {
+  var EMPTY = { date:"", time:"" };
+  var s = String(value||"").trim().replace(/[​‌‍﻿]/g,"");
+  if (!s) return EMPTY;
+
+  // ค่าที่เป็น "เวลาล้วน" ออกไปก่อน — ต้อง anchor ท้ายด้วย
+  //   เดิมใช้ /เช้า|บ่าย|เย็น|น\.$/ แบบไม่ anchor ทำให้ "09 สิงหาคม 2569 เวลา 10:00 น."
+  //   โดนจับเป็นเวลาล้วนเพราะลงท้าย "น." -> วันที่ในนั้นเลยไม่ถูกกู้
+  if (/^0\.\d+$/.test(s)) return EMPTY;                                    // decimal fraction
+  if (/^(รอบ)?\s*(เช้า|บ่าย|เย็น)\s*$/.test(s)) return EMPTY;              // รอบส่ง
+  if (/^\d{1,2}\s*[:.]\s*\d{2}(\s*[-–]\s*\d{1,2}\s*[:.]\s*\d{2})?\s*(น\.?)?$/.test(s)) return EMPTY; // 10:00 / 08:00-10:00 / 10:00 น.
+
+  // หาวันที่ในข้อความ
+  //   pre-check ถูก ๆ ก่อน: parseThaiMonthDateFromText_ วน regex 36 ชื่อเดือน + log เมื่อไม่เจอ
+  //   ฟังก์ชันนี้วิ่งทุกแถวที่อ่าน sheet (rowArrayToObject_) ถ้าเรียกมั่วจะช้ามาก + log ท่วม
+  var date = "";
+  if (/\d{1,2}\s*[ก-๙.]{2,}\s*\d{4}/.test(s)) date = parseThaiMonthDateFromText_(s) || "";
+  if (!date) {
+    var slash = s.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
+    if (slash) {
+      var n = normalizeDateText_(slash[1]);
+      if (n && /^\d{2}\/\d{2}\/\d{4}$/.test(n)) date = n;
+    }
+  }
+  if (!date) return EMPTY;
+
+  // มีวันที่แน่แล้ว -> ดึงเวลาที่ปนมาในก้อนเดียวกันเก็บไว้ (ถ้ามี)
+  //   [:.] ไม่ชนกับวันที่รูปแบบ dd/MM/yyyy เพราะตัวคั่นเป็น / หรือ -
+  var tm = s.match(/(\d{1,2})\s*[:.]\s*(\d{2})/);
+  return { date: date, time: tm ? (parseInt(tm[1],10) + ":" + tm[2]) : "" };
+}
+
+// _dateFromTimeField_ — เอาเฉพาะส่วนวันที่ (ใช้ในจุดที่สนใจแค่ว่า "เป็นวันที่ไหม")
 function _dateFromTimeField_(value) {
-  var s = String(value||"").trim();
-  if (!s) return "";
-  if (/^\d{1,2}\s*[:.]\s*\d{2}/.test(s)) return "";        // 10:00 / 10.00 = เวลาจริง
-  if (/^0\.\d+$/.test(s)) return "";                        // decimal fraction of day
-  if (/เช้า|บ่าย|เย็น|น\.$/.test(s)) return "";             // รอบส่ง / "10:00 น."
-  // ข้อความวันที่ไทย "25 กรกฎาคม 2569" / "25 ก.ค. 2569"
-  //   pre-check ถูก ๆ ก่อน: parseThaiMonthDateFromText_ วน regex 36 ชื่อเดือน + log WARN เมื่อไม่เจอ
-  //   ฟังก์ชันนี้ถูกเรียกจาก normalizeDeliveryTime_ ซึ่งวิ่งทุกแถวที่อ่าน sheet (rowArrayToObject_)
-  //   ถ้าเรียกมั่วทุกแถว = ช้ามาก + log ท่วม
-  if (/\d{1,2}\s*[ก-๙.]{2,}\s*\d{4}/.test(s)) {
-    var th = parseThaiMonthDateFromText_(s);
-    if (th) return th;
-  }
-  // dd/MM/yyyy หรือ dd-MM-yyyy ล้วน ๆ (ไม่มีเวลาต่อท้าย)
-  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(s)) {
-    var n = normalizeDateText_(s);
-    if (n && /^\d{2}\/\d{2}\/\d{4}$/.test(n)) return n;
-  }
-  return "";
+  return _splitDateTimeField_(value).date;
 }
 
 // ── ปุ่มลัดสำหรับรันจาก dropdown ใน Apps Script editor ──
@@ -392,11 +408,12 @@ function repairDateInTimeField(apply) {
 
   var hits = [];
   for (var i = 0; i < times.length; i++) {
-    var recovered = _dateFromTimeField_(times[i][0]);
-    if (!recovered) continue;
+    var sp = _splitDateTimeField_(times[i][0]);
+    if (!sp.date) continue;
     var oldDate = normalizeDateText_(dates[i][0]);
-    // oldDate === recovered ก็ยังต้องซ่อม เพราะช่องเวลายังมีวันที่ค้างอยู่ (โชว์ผิดใน plan)
-    hits.push({ row:i+2, id:ids?ids[i][0]:"", from:oldDate, to:recovered, timeWas:times[i][0] });
+    // oldDate === sp.date ก็ยังต้องซ่อม เพราะช่องเวลายังมีวันที่ค้างอยู่ (โชว์ผิดใน plan)
+    hits.push({ row:i+2, id:ids?ids[i][0]:"", from:oldDate, to:sp.date,
+                timeWas:times[i][0], timeKeep:sp.time });
   }
 
   // ยึดตามที่ผู้ใช้กรอกเสมอ — วันส่งย้อนหลังเป็นเรื่องปกติของร้าน
@@ -415,7 +432,8 @@ function repairDateInTimeField(apply) {
   if (moved.length) {
     Logger.log("--- วันส่งจะเปลี่ยน (ดูให้ครบก่อนสั่งเขียนจริง) ---");
     moved.slice(0, 100).forEach(function(h) {
-      Logger.log("  แถว "+h.row+" "+h.id+" | สร้าง "+h.createdTH+" | เวลาส่ง=\""+h.timeWas+"\" | วันส่ง "+h.from+" → "+h.to);
+      Logger.log("  แถว "+h.row+" "+h.id+" | สร้าง "+h.createdTH+" | เวลาส่ง=\""+h.timeWas+"\""
+        +" | วันส่ง "+h.from+" → "+h.to+(h.timeKeep ? " | เก็บเวลา "+h.timeKeep : ""));
     });
     if (moved.length > 100) Logger.log("  ... อีก "+(moved.length-100)+" แถว");
   }
@@ -429,7 +447,7 @@ function repairDateInTimeField(apply) {
 
   hits.forEach(function(h) {
     sheet.getRange(h.row, map.deliveryDate).setValue(h.to);
-    sheet.getRange(h.row, map.deliveryTime).setValue("");
+    sheet.getRange(h.row, map.deliveryTime).setValue(h.timeKeep || ""); // เก็บเวลาที่ปนมาไว้ ไม่ล้างทิ้ง
     if (map.lastUpdatedAt) sheet.getRange(h.row, map.lastUpdatedAt).setValue(getTimestampTH());
     if (map.lastUpdatedBy) sheet.getRange(h.row, map.lastUpdatedBy).setValue("repair:dateInTime");
   });
@@ -2996,11 +3014,11 @@ function saveOrderToSheet_(data, rawText, updatedBy) {
   //     จับเป็นเวลาส่ง → deliveryTime = วันที่ ส่วน deliveryDate หาไม่เจอ → fallback เป็นวันนี้
   //     → ทุกใบไปกองอยู่วันที่บันทึกแทนที่จะเป็นวันส่งจริง
   //   แก้ตรงนี้เพราะเป็นจุดรวมที่ทุก parser วิ่งผ่าน — ครอบคลุมทุก pattern ในครั้งเดียว
-  var _dateInTime = _dateFromTimeField_(data.deliveryTime);
-  if (_dateInTime) {
-    Logger.log("[WARN] saveOrderToSheet_ | เจอวันที่ในช่องเวลาส่ง (\""+data.deliveryTime+"\") → ย้ายไป deliveryDate="+_dateInTime);
-    data.deliveryDate = _dateInTime;   // วันที่ที่ user พิมพ์เองชนะ fallback วันนี้เสมอ
-    data.deliveryTime = "";
+  var _split = _splitDateTimeField_(data.deliveryTime);
+  if (_split.date) {
+    Logger.log("[WARN] saveOrderToSheet_ | เจอวันที่ในช่องเวลาส่ง (\""+data.deliveryTime+"\") → วันส่ง="+_split.date+" เวลา=\""+_split.time+"\"");
+    data.deliveryDate = _split.date;   // วันที่ที่ user พิมพ์เองชนะ fallback วันนี้เสมอ
+    data.deliveryTime = _split.time;   // เก็บเวลาที่ปนมาไว้ ("09 ส.ค. 2569 เวลา 10:00 น." -> 10:00)
   }
 
   // normalize ก่อน save ทุกครั้ง
