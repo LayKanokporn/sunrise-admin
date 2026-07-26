@@ -357,10 +357,21 @@ function _dateFromTimeField_(value) {
   return "";
 }
 
+// _createdDateFromOrderId_ — ดึงวันที่สร้างจาก ORD-DDMMYYYY-HHMMSS คืนเป็น dd/MM/yyyy BE
+//   ใช้เช็คความสมเหตุสมผล: วันส่งที่อยู่ก่อนวันสร้างออเดอร์ = น่าสงสัย
+function _createdDateFromOrderId_(orderId) {
+  var m = String(orderId||"").match(/ORD-(\d{2})(\d{2})(\d{4})/);
+  if (!m) return "";
+  var y = parseInt(m[3],10);
+  if (y < 2400) y += 543;              // CE ใน order id -> BE ให้ตรงกับคอลัมน์วันส่ง
+  return m[1]+"/"+m[2]+"/"+y;
+}
+
 // ซ่อมข้อมูลเก่าที่วันที่ไปค้างอยู่ช่อง "เวลาส่ง" (ใบที่บันทึกก่อน FIX 26/07)
 //   รันใน Apps Script editor:
-//     repairDateInTimeField()      → dry-run เฉย ๆ ดูว่าจะแก้แถวไหนบ้าง ไม่เขียนอะไร
+//     repairDateInTimeField()      → dry-run ดูอย่างเดียว ไม่เขียนอะไร
 //     repairDateInTimeField(true)  → เขียนจริง
+//   ยึดตามวันที่ที่ผู้ใช้กรอกเสมอ รวมถึงวันย้อนหลัง (ร้านกรอกย้อนหลังเก็บตกข้อมูลได้)
 //   แนะนำ: ดู dry-run ก่อนทุกครั้ง แล้วค่อยสั่งเขียน
 function repairDateInTimeField(apply) {
   var sheet = getSheet();
@@ -385,20 +396,23 @@ function repairDateInTimeField(apply) {
     hits.push({ row:i+2, id:ids?ids[i][0]:"", from:oldDate, to:recovered, timeWas:times[i][0] });
   }
 
-  // แยก 2 กลุ่ม — ผลกระทบต่างกันมาก ต้องเห็นชัดก่อนตัดสินใจเขียนจริง
-  //   moved  = วันส่งจะเปลี่ยนจริง (ออเดอร์จะย้ายวัน) ← ตัวที่แก้อาการ "ไม่ไปอยู่ตามวันที่"
-  //   cleanOnly = วันถูกอยู่แล้ว แค่ล้างวันที่ที่ค้างในช่องเวลา (ผลแค่การแสดงผล)
-  var moved     = hits.filter(function(h){ return h.from !== h.to; });
+  // ยึดตามที่ผู้ใช้กรอกเสมอ — วันส่งย้อนหลังเป็นเรื่องปกติของร้าน
+  //   (กรอกออเดอร์ย้อนหลังเพื่อเก็บตกข้อมูลที่ตกหล่น) จึงไม่ตัดทิ้งและไม่บล็อก
+  //   แยกกลุ่มเพื่อ "ให้ดู" อย่างเดียว ไม่ได้เอาไปกรองออก
+  //   cleanOnly = วันถูกอยู่แล้ว แค่ล้างวันที่ที่ค้างในช่องเวลา
+  //   moved     = วันส่งจะเปลี่ยนจริง ← ตัวที่แก้อาการ "ไม่ไปอยู่ตามวันที่"
+  hits.forEach(function(h){ h.createdTH = _createdDateFromOrderId_(h.id); });
   var cleanOnly = hits.filter(function(h){ return h.from === h.to; });
+  var moved     = hits.filter(function(h){ return h.from !== h.to; });
 
   Logger.log("[INFO] repairDateInTimeField | เจอ "+hits.length+" แถว | apply="+(apply===true));
-  Logger.log("  ├─ วันส่งเปลี่ยนจริง : "+moved.length+" แถว  ← ออเดอร์จะย้ายไปวันที่ถูกต้อง");
+  Logger.log("  ├─ วันส่งเปลี่ยนจริง : "+moved.length+" แถว  ← ออเดอร์จะย้ายไปวันที่ที่กรอกไว้");
   Logger.log("  └─ แค่ล้างช่องเวลา   : "+cleanOnly.length+" แถว (วันส่งถูกอยู่แล้ว)");
 
   if (moved.length) {
-    Logger.log("--- รายการที่วันส่งจะเปลี่ยน (ดูให้ครบก่อนสั่งเขียนจริง) ---");
+    Logger.log("--- วันส่งจะเปลี่ยน (ดูให้ครบก่อนสั่งเขียนจริง) ---");
     moved.slice(0, 100).forEach(function(h) {
-      Logger.log("  แถว "+h.row+" "+h.id+" | เวลาส่ง=\""+h.timeWas+"\" | วันส่ง "+h.from+" → "+h.to);
+      Logger.log("  แถว "+h.row+" "+h.id+" | สร้าง "+h.createdTH+" | เวลาส่ง=\""+h.timeWas+"\" | วันส่ง "+h.from+" → "+h.to);
     });
     if (moved.length > 100) Logger.log("  ... อีก "+(moved.length-100)+" แถว");
   }
