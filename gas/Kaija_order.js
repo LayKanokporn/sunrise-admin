@@ -378,6 +378,56 @@ function ซ่อมวันที่_เขียนจริง() {
   return repairDateInTimeField(true);
 }
 
+// เช็คว่าปฏิทินเว็บควรเห็นอะไรบ้างในเดือนนี้ — ใช้ query ตัวเดียวกับที่ API ใช้
+//   ตอบคำถาม "ทำไมวันที่ 28 ว่าง" ได้ตรง ๆ โดยไม่ต้องไปไล่หา log ของ web app
+//   (log จาก doGet ไม่โผล่ในหน้า "บันทึกการดำเนินการ" ต้องเข้าหน้า "การดำเนินการ" แยก)
+function เช็คปฏิทิน_เดือนนี้() {
+  var now = new Date();
+  return _debugCalendarMonth_(now.getFullYear(), now.getMonth() + 1);
+}
+function เช็คปฏิทิน_เดือนหน้า() {
+  var now = new Date();
+  var d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return _debugCalendarMonth_(d.getFullYear(), d.getMonth() + 1);
+}
+
+function _debugCalendarMonth_(ceYear, month) {
+  var first = new Date(ceYear, month - 1, 1);
+  var last  = new Date(ceYear, month, 0);
+  Logger.log("=== ตรวจปฏิทิน "+pad2(month)+"/"+(ceYear+543)+" ===");
+  Logger.log("ช่วงที่ query: "+pad2(first.getDate())+"/"+pad2(month)+"/"+(ceYear+543)
+             +" ถึง "+pad2(last.getDate())+"/"+pad2(month)+"/"+(ceYear+543));
+
+  var rows   = getOrderRowsByDateRange(first, last);
+  var active = rows.filter(function(r){ return !isRowCancelled(r); });
+  var groups = groupRowsByOrder(active);
+  Logger.log("แถวที่ดึงได้: "+rows.length+" (ไม่นับที่ยกเลิก "+active.length+") -> "+groups.length+" ออเดอร์");
+
+  // นับรายวัน
+  var byDate = {};
+  groups.forEach(function(g) {
+    var main = g.rows.find(function(r){ return toNumber(r.grandTotal)>0; }) || g.rows[0] || {};
+    var d = String(main.deliveryDate||"-");
+    (byDate[d] = byDate[d] || []).push(String(main.customerName||main.tableName||"-"));
+  });
+
+  Logger.log("--- จำนวนออเดอร์รายวัน ---");
+  var empty = [];
+  for (var day = 1; day <= last.getDate(); day++) {
+    var key  = pad2(day)+"/"+pad2(month)+"/"+(ceYear+543);
+    var list = byDate[key] || [];
+    if (!list.length) { empty.push(day); continue; }
+    Logger.log("  "+key+" | "+list.length+" ออเดอร์ | "+list.slice(0,4).join(", ")
+               +(list.length>4 ? " ..." : ""));
+  }
+  Logger.log("--- วันที่ไม่มีออเดอร์เลย: "+(empty.length ? empty.join(", ") : "(ไม่มี)")+" ---");
+  Logger.log("ถ้าวันที่ควรมีออเดอร์แต่ขึ้นว่างตรงนี้ = ข้อมูลใน Sheet วันนั้นผิด ไม่ใช่ปัญหาที่เว็บ");
+  Logger.log("ถ้าตรงนี้มีแต่เว็บไม่ขึ้น = ปัญหาที่ cache เว็บ ให้กดปุ่มรีเฟรชในแอป");
+
+  return { month: pad2(month)+"/"+(ceYear+543), rows: rows.length,
+           orders: groups.length, emptyDays: empty };
+}
+
 // _createdDateFromOrderId_ — ดึงวันที่สร้างจาก ORD-DDMMYYYY-HHMMSS คืนเป็น dd/MM/yyyy BE
 //   ใช้แสดงบริบทในรายงาน (ร้านกรอกออเดอร์ย้อนหลังได้ ไม่ถือว่าผิด)
 function _createdDateFromOrderId_(orderId) {
