@@ -378,6 +378,87 @@ function ซ่อมวันที่_เขียนจริง() {
   return repairDateInTimeField(true);
 }
 
+// ── เทียบผล parse ใหม่ กับข้อมูลที่บันทึกไว้ในชีท ──
+//   ชีทเก็บ rawText (ข้อความ LINE ต้นฉบับ) ไว้ทุกแถว = ชุดทดสอบจากงานจริง
+//   เอามา parse ด้วยโค้ดปัจจุบันแล้วเทียบ จะเห็น 2 อย่าง:
+//     1. ข้อมูลเก่าที่ผิด (บันทึกตอน parser ยังมีบั๊ก) -> รู้ว่าต้องซ่อมใบไหน
+//     2. regression (แก้โค้ดแล้วพังของเดิม) -> รันก่อน/หลังแก้ทุกครั้ง
+//   อ่านอย่างเดียว ไม่แตะข้อมูล
+function เทียบผลparse_200ใบล่าสุด() { return compareParseWithSheet_(200); }
+function เทียบผลparse_ทั้งหมด()    { return compareParseWithSheet_(0); }
+
+function compareParseWithSheet_(limitOrders) {
+  var rows = getOrderRows(null, 20000);
+  if (!rows.length) { Logger.log("ไม่มีข้อมูลในชีท"); return { ok:false }; }
+
+  var groups = groupRowsByOrder(rows);
+  // ใหม่สุดก่อน — ถ้าจำกัดจำนวนจะได้ตรวจของที่เพิ่งเข้ามา
+  groups.reverse();
+  var max = (limitOrders && limitOrders > 0) ? limitOrders : groups.length;
+
+  var checked = 0, same = 0, noRaw = 0, edited = 0, parseFail = 0;
+  var diffs = { deliveryDate:[], customerName:[], grandTotal:[], itemCount:[] };
+
+  for (var i = 0; i < groups.length && checked < max; i++) {
+    var g    = groups[i];
+    var main = g.rows.find(function(r){ return toNumber(r.grandTotal)>0; }) || g.rows[0] || {};
+    var raw  = "";
+    for (var k = 0; k < g.rows.length && !raw; k++) raw = String(g.rows[k].rawText||"").trim();
+    if (!raw) { noRaw++; continue; }
+    // ใบที่ถูกแก้ทีหลัง ชีทจะต่างจาก rawText โดยตั้งใจ -> ไม่นับเป็นความผิดพลาด
+    if (String(main.lastUpdatedBy||"").trim()) { edited++; continue; }
+
+    checked++;
+    var p;
+    try { p = parseOrder(raw); } catch(e) { parseFail++; continue; }
+    if (!p || !p.items) { parseFail++; continue; }
+
+    // parseOrder ไม่ได้ผ่าน saveOrderToSheet_ จึงต้อง normalize เองให้เทียบกันได้
+    var newDate = normalizeDateText_(p.deliveryDate) || "";
+    var oldDate = normalizeDateText_(main.deliveryDate) || "";
+    var newName = String(p.customerName||p.tableName||"").trim();
+    var oldName = String(main.customerName||main.tableName||"").trim();
+    var newTot  = toNumber(p.grandTotal);
+    var oldTot  = toNumber(main.grandTotal);
+    var newCnt  = p.items.length;
+    var oldCnt  = g.rows.filter(function(r){ return String(r.menuName||"").trim(); }).length;
+
+    var rid = g.orderId, rraw = raw.substring(0,90).replace(/\n/g," ");
+    function mk(o, n) { return { id:rid, raw:rraw, old:o, neu:n }; }
+    var hit = false;
+    if (oldDate !== newDate)         { diffs.deliveryDate.push(mk(oldDate,newDate)); hit=true; }
+    if (oldName !== newName)         { diffs.customerName.push(mk(oldName,newName)); hit=true; }
+    if (Math.abs(oldTot-newTot) > 1) { diffs.grandTotal.push(mk(oldTot,newTot));     hit=true; }
+    if (oldCnt !== newCnt)           { diffs.itemCount.push(mk(oldCnt,newCnt));      hit=true; }
+    if (!hit) same++;
+  }
+
+  var LABEL = { deliveryDate:"วันส่ง", customerName:"ชื่อลูกค้า", grandTotal:"ยอดรวม", itemCount:"จำนวนรายการ" };
+  Logger.log("=== เทียบผล parse ใหม่ กับข้อมูลในชีท ===");
+  Logger.log("ออเดอร์ทั้งหมด "+groups.length+" | ตรวจจริง "+checked
+             +" (ข้าม: ไม่มี rawText "+noRaw+", แก้ไขภายหลัง "+edited+")");
+  Logger.log("ตรงกันหมด "+same+" | ไม่ตรง "+(checked-same-parseFail)+" | parse ไม่ผ่าน "+parseFail);
+
+  Object.keys(diffs).forEach(function(k) {
+    var list = diffs[k];
+    if (!list.length) return;
+    Logger.log("");
+    Logger.log("["+LABEL[k]+"] "+list.length+" ใบ");
+    list.slice(0, 25).forEach(function(d) {
+      Logger.log("  "+d.id+" | ชีท: "+d.old+" | parse ใหม่: "+d.neu);
+      Logger.log("      raw: "+d.raw);
+    });
+    if (list.length > 25) Logger.log("  ... อีก "+(list.length-25)+" ใบ");
+  });
+
+  Logger.log("");
+  Logger.log("อ่านผล: ต่างที่ 'วันส่ง' ส่วนใหญ่ = ข้อมูลเก่าผิด (บันทึกตอน parser ยังมีบั๊ก)");
+  Logger.log("        ต่างที่ 'ยอดรวม/จำนวนรายการ' = ต้องดูทีละใบว่าฝั่งไหนถูก");
+  return { checked:checked, same:same, noRaw:noRaw, edited:edited, parseFail:parseFail,
+           diffCounts:{ deliveryDate:diffs.deliveryDate.length, customerName:diffs.customerName.length,
+                        grandTotal:diffs.grandTotal.length, itemCount:diffs.itemCount.length } };
+}
+
 // เช็คว่าปฏิทินเว็บควรเห็นอะไรบ้างในเดือนนี้ — ใช้ query ตัวเดียวกับที่ API ใช้
 //   ตอบคำถาม "ทำไมวันที่ 28 ว่าง" ได้ตรง ๆ โดยไม่ต้องไปไล่หา log ของ web app
 //   (log จาก doGet ไม่โผล่ในหน้า "บันทึกการดำเนินการ" ต้องเข้าหน้า "การดำเนินการ" แยก)
