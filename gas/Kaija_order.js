@@ -332,7 +332,82 @@ function normalizeDateText_(value) {
   return s;
 }
 
-// [FIX-2] normalizeDeliveryTime_ — decimal fraction + ห้าม serial/ISO ใน Delivery Time
+// _dateFromTimeField_ — ช่อง "เวลาส่ง" มีวันที่ปนมาไหม? คืน dd/MM/yyyy (BE) ถ้าใช่ ไม่ใช่คืน ""
+//   ใช้กู้เคสที่ user พิมพ์วันส่งลงตำแหน่งที่ parser จับเป็นเวลา
+//   กันชนกับค่าเวลาที่ถูกต้องก่อน (10:00 / รอบเช้า / 0.4375) แล้วค่อยลองอ่านเป็นวันที่
+function _dateFromTimeField_(value) {
+  var s = String(value||"").trim();
+  if (!s) return "";
+  if (/^\d{1,2}\s*[:.]\s*\d{2}/.test(s)) return "";        // 10:00 / 10.00 = เวลาจริง
+  if (/^0\.\d+$/.test(s)) return "";                        // decimal fraction of day
+  if (/เช้า|บ่าย|เย็น|น\.$/.test(s)) return "";             // รอบส่ง / "10:00 น."
+  // ข้อความวันที่ไทย "25 กรกฎาคม 2569" / "25 ก.ค. 2569"
+  //   pre-check ถูก ๆ ก่อน: parseThaiMonthDateFromText_ วน regex 36 ชื่อเดือน + log WARN เมื่อไม่เจอ
+  //   ฟังก์ชันนี้ถูกเรียกจาก normalizeDeliveryTime_ ซึ่งวิ่งทุกแถวที่อ่าน sheet (rowArrayToObject_)
+  //   ถ้าเรียกมั่วทุกแถว = ช้ามาก + log ท่วม
+  if (/\d{1,2}\s*[ก-๙.]{2,}\s*\d{4}/.test(s)) {
+    var th = parseThaiMonthDateFromText_(s);
+    if (th) return th;
+  }
+  // dd/MM/yyyy หรือ dd-MM-yyyy ล้วน ๆ (ไม่มีเวลาต่อท้าย)
+  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(s)) {
+    var n = normalizeDateText_(s);
+    if (n && /^\d{2}\/\d{2}\/\d{4}$/.test(n)) return n;
+  }
+  return "";
+}
+
+// ซ่อมข้อมูลเก่าที่วันที่ไปค้างอยู่ช่อง "เวลาส่ง" (ใบที่บันทึกก่อน FIX 26/07)
+//   รันใน Apps Script editor:
+//     repairDateInTimeField()      → dry-run เฉย ๆ ดูว่าจะแก้แถวไหนบ้าง ไม่เขียนอะไร
+//     repairDateInTimeField(true)  → เขียนจริง
+//   แนะนำ: ดู dry-run ก่อนทุกครั้ง แล้วค่อยสั่งเขียน
+function repairDateInTimeField(apply) {
+  var sheet = getSheet();
+  var map   = getHeaderMap_();
+  if (!map.deliveryTime || !map.deliveryDate) {
+    Logger.log("[ERROR] repairDateInTimeField | ไม่เจอคอลัมน์ Delivery Date/Time");
+    return { ok:false, error:"missing column" };
+  }
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { ok:true, found:0, applied:0 };
+
+  var dates = sheet.getRange(2, map.deliveryDate, lastRow-1, 1).getValues();
+  var times = sheet.getRange(2, map.deliveryTime, lastRow-1, 1).getValues();
+  var ids   = map.orderId ? sheet.getRange(2, map.orderId, lastRow-1, 1).getValues() : null;
+
+  var hits = [];
+  for (var i = 0; i < times.length; i++) {
+    var recovered = _dateFromTimeField_(times[i][0]);
+    if (!recovered) continue;
+    var oldDate = normalizeDateText_(dates[i][0]);
+    // oldDate === recovered ก็ยังต้องซ่อม เพราะช่องเวลายังมีวันที่ค้างอยู่ (โชว์ผิดใน plan)
+    hits.push({ row:i+2, id:ids?ids[i][0]:"", from:oldDate, to:recovered, timeWas:times[i][0] });
+  }
+
+  Logger.log("[INFO] repairDateInTimeField | เจอ "+hits.length+" แถวที่วันที่อยู่ในช่องเวลา | apply="+(apply===true));
+  hits.slice(0, 50).forEach(function(h) {
+    Logger.log("  แถว "+h.row+" "+h.id+" | เวลาส่ง=\""+h.timeWas+"\" | วันส่ง "+h.from+" → "+h.to);
+  });
+  if (hits.length > 50) Logger.log("  ... อีก "+(hits.length-50)+" แถว");
+
+  if (apply !== true) {
+    Logger.log("[INFO] dry-run — ยังไม่เขียนอะไร สั่ง repairDateInTimeField(true) เพื่อเขียนจริง");
+    return { ok:true, dryRun:true, found:hits.length, applied:0, sample:hits.slice(0,20) };
+  }
+
+  hits.forEach(function(h) {
+    sheet.getRange(h.row, map.deliveryDate).setValue(h.to);
+    sheet.getRange(h.row, map.deliveryTime).setValue("");
+    if (map.lastUpdatedAt) sheet.getRange(h.row, map.lastUpdatedAt).setValue(getTimestampTH());
+    if (map.lastUpdatedBy) sheet.getRange(h.row, map.lastUpdatedBy).setValue("repair:dateInTime");
+  });
+  clearSheetCache();
+  Logger.log("[INFO] repairDateInTimeField | เขียนแล้ว "+hits.length+" แถว");
+  return { ok:true, dryRun:false, found:hits.length, applied:hits.length };
+}
+
+// [FIX-2] normalizeDeliveryTime_ — decimal fraction + ห้าม serial/ISO/วันที่ ใน Delivery Time
 function normalizeDeliveryTime_(value) {
   if (!value) return "";
   var s = String(value).trim();
@@ -348,6 +423,10 @@ function normalizeDeliveryTime_(value) {
   if (/^\d{5,6}$/.test(s)) return ""; // serial number → empty
   if (/T\d{2}:\d{2}/.test(s)) return ""; // ISO datetime → empty
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return ""; // ISO date → empty
+  // [FIX 26/07] วันที่รูปแบบอื่นก็ห้ามอยู่ในช่องเวลา — เดิมกันแค่ serial/ISO
+  //   ข้อความไทย "25 กรกฎาคม 2569" และ "25/07/2569" หลุด return s ไปโชว์เป็นเวลาส่ง
+  //   (เห็นใน plan 7 เป็น "ชื่อร้าน (25 กรกฎาคม 2569)")
+  if (_dateFromTimeField_(s)) return "";
   if (/รอบเช้า|^เช้า$/.test(s)) return "รอบเช้า";
   if (/รอบบ่าย|^บ่าย$/.test(s)) return "รอบบ่าย";
   if (/รอบเย็น|^เย็น$/.test(s)) return "รอบเย็น";
@@ -2824,6 +2903,19 @@ function saveOrderToSheet_(data, rawText, updatedBy) {
   var map    = getHeaderMap_();
   var nowTs  = getTimestampTH();
   var colLen = sheet.getLastColumn();
+
+  // [FIX 26/07] กู้วันที่ที่หลุดไปอยู่ช่อง "เวลาส่ง"
+  //   อาการที่แจ้ง: "รายการมันไม่ไปอยู่ตามวันที่" — ออเดอร์ของวันที่ 25/27 ไปกองอยู่ 26 หมด
+  //   สาเหตุ: user พิมพ์วันส่งเป็นข้อความไทย ("25 กรกฎาคม 2569") ในตำแหน่งที่ parser
+  //     จับเป็นเวลาส่ง → deliveryTime = วันที่ ส่วน deliveryDate หาไม่เจอ → fallback เป็นวันนี้
+  //     → ทุกใบไปกองอยู่วันที่บันทึกแทนที่จะเป็นวันส่งจริง
+  //   แก้ตรงนี้เพราะเป็นจุดรวมที่ทุก parser วิ่งผ่าน — ครอบคลุมทุก pattern ในครั้งเดียว
+  var _dateInTime = _dateFromTimeField_(data.deliveryTime);
+  if (_dateInTime) {
+    Logger.log("[WARN] saveOrderToSheet_ | เจอวันที่ในช่องเวลาส่ง (\""+data.deliveryTime+"\") → ย้ายไป deliveryDate="+_dateInTime);
+    data.deliveryDate = _dateInTime;   // วันที่ที่ user พิมพ์เองชนะ fallback วันนี้เสมอ
+    data.deliveryTime = "";
+  }
 
   // normalize ก่อน save ทุกครั้ง
   data.deliveryDate = normalizeDateText_(data.deliveryDate) || getTodayTH();
