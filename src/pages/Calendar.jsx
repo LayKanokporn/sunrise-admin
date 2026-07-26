@@ -9,6 +9,7 @@ import OrderCard from '../components/OrderCard';
 import AddOrderModal from '../components/AddOrderModal';
 import FilterChips, { ORDER_FILTERS, applyOrderFilters } from '../components/FilterChips';
 import { usePrefs, sortPinned } from '../lib/prefs';
+import { orderDisplayName } from '../lib/displayName';
 import BulkActionBar from '../components/BulkActionBar';
 import { SkeletonOrderCard, SkeletonStatCard } from '../components/Skeleton';
 import { Plus } from 'lucide-react';
@@ -437,7 +438,7 @@ export default function CalendarPage() {
                         /cancelled|ยกเลิก/.test(o.status) ? 'border-l-slate-300' :
                         (o.paymentStatus||'').toLowerCase() === 'paid' ? 'border-l-green-400' :
                         'border-l-amber-400';
-                      const name = String(o.customerName||'').replace(/^(FB|Line OA)\s*[:\-]?\s*/i,'').trim();
+                      const name = orderDisplayName(o);
                       return (
                         <div key={o.orderId}
                           className={'border-l-[3px] pl-0.5 sm:pl-1.5 pr-0.5 rounded-r bg-slate-50/80 ' +

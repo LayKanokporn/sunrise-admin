@@ -5,6 +5,7 @@ import { useOrderActions } from '../lib/useOrderActions';
 import { toast } from '../lib/toast';
 import { buzz } from '../lib/haptic';
 import { prefs, usePrefs } from '../lib/prefs';
+import { orderDisplayName } from '../lib/displayName';
 
 // copy ข้อความเข้า clipboard + haptic + toast
 function copyText(text, label) {
@@ -123,7 +124,7 @@ export default function OrderCard({
             disabled={!onCustomerClick}
             className={'font-bold truncate text-left max-w-full block ' +
               (onCustomerClick ? 'hover:text-sunrise-600 hover:underline' : '')}>
-            {order.customerName || '-'}
+            {orderDisplayName(order)}
           </button>
           <div className="text-xs text-slate-500 truncate">{order.orderId}</div>
         </div>
