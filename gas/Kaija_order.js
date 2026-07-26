@@ -385,15 +385,29 @@ function repairDateInTimeField(apply) {
     hits.push({ row:i+2, id:ids?ids[i][0]:"", from:oldDate, to:recovered, timeWas:times[i][0] });
   }
 
-  Logger.log("[INFO] repairDateInTimeField | เจอ "+hits.length+" แถวที่วันที่อยู่ในช่องเวลา | apply="+(apply===true));
-  hits.slice(0, 50).forEach(function(h) {
-    Logger.log("  แถว "+h.row+" "+h.id+" | เวลาส่ง=\""+h.timeWas+"\" | วันส่ง "+h.from+" → "+h.to);
-  });
-  if (hits.length > 50) Logger.log("  ... อีก "+(hits.length-50)+" แถว");
+  // แยก 2 กลุ่ม — ผลกระทบต่างกันมาก ต้องเห็นชัดก่อนตัดสินใจเขียนจริง
+  //   moved  = วันส่งจะเปลี่ยนจริง (ออเดอร์จะย้ายวัน) ← ตัวที่แก้อาการ "ไม่ไปอยู่ตามวันที่"
+  //   cleanOnly = วันถูกอยู่แล้ว แค่ล้างวันที่ที่ค้างในช่องเวลา (ผลแค่การแสดงผล)
+  var moved     = hits.filter(function(h){ return h.from !== h.to; });
+  var cleanOnly = hits.filter(function(h){ return h.from === h.to; });
+
+  Logger.log("[INFO] repairDateInTimeField | เจอ "+hits.length+" แถว | apply="+(apply===true));
+  Logger.log("  ├─ วันส่งเปลี่ยนจริง : "+moved.length+" แถว  ← ออเดอร์จะย้ายไปวันที่ถูกต้อง");
+  Logger.log("  └─ แค่ล้างช่องเวลา   : "+cleanOnly.length+" แถว (วันส่งถูกอยู่แล้ว)");
+
+  if (moved.length) {
+    Logger.log("--- รายการที่วันส่งจะเปลี่ยน (ดูให้ครบก่อนสั่งเขียนจริง) ---");
+    moved.slice(0, 100).forEach(function(h) {
+      Logger.log("  แถว "+h.row+" "+h.id+" | เวลาส่ง=\""+h.timeWas+"\" | วันส่ง "+h.from+" → "+h.to);
+    });
+    if (moved.length > 100) Logger.log("  ... อีก "+(moved.length-100)+" แถว");
+  }
 
   if (apply !== true) {
     Logger.log("[INFO] dry-run — ยังไม่เขียนอะไร สั่ง repairDateInTimeField(true) เพื่อเขียนจริง");
-    return { ok:true, dryRun:true, found:hits.length, applied:0, sample:hits.slice(0,20) };
+    return { ok:true, dryRun:true, found:hits.length,
+             movedCount:moved.length, cleanOnlyCount:cleanOnly.length,
+             applied:0, movedSample:moved.slice(0,20) };
   }
 
   hits.forEach(function(h) {
@@ -403,8 +417,9 @@ function repairDateInTimeField(apply) {
     if (map.lastUpdatedBy) sheet.getRange(h.row, map.lastUpdatedBy).setValue("repair:dateInTime");
   });
   clearSheetCache();
-  Logger.log("[INFO] repairDateInTimeField | เขียนแล้ว "+hits.length+" แถว");
-  return { ok:true, dryRun:false, found:hits.length, applied:hits.length };
+  Logger.log("[INFO] repairDateInTimeField | เขียนแล้ว "+hits.length+" แถว (ย้ายวัน "+moved.length+" / ล้างเวลาอย่างเดียว "+cleanOnly.length+")");
+  return { ok:true, dryRun:false, found:hits.length,
+           movedCount:moved.length, cleanOnlyCount:cleanOnly.length, applied:hits.length };
 }
 
 // [FIX-2] normalizeDeliveryTime_ — decimal fraction + ห้าม serial/ISO/วันที่ ใน Delivery Time
@@ -2510,9 +2525,47 @@ function getThaiMonthMap_() {
   };
 }
 
+// _thaiMonthKey_ — ทำชื่อเดือนให้เป็นรูปมาตรฐานก่อนเทียบ ทนการพิมพ์ผิดที่เจอจริง
+//   เคสจริงจาก log 26/07: "กรกฏาคม" / "กรกฏฏาคม" / "กรมกฏาคม" (ที่ถูกคือ กรกฎาคม)
+//   ฎ ชฎา กับ ฏ ปฏัก หน้าตาเกือบเหมือนกัน คนพิมพ์สลับกันประจำ
+//   พอเทียบไม่ติด -> deliveryDate fallback เป็นวันนี้ -> ออเดอร์ไปกองผิดวัน
+function _thaiMonthKey_(s) {
+  return String(s||"")
+    .replace(/[​‌‍﻿ ]/g, "") // zero-width / nbsp จากฟอนต์ตกแต่ง
+    .replace(/[\s.]/g, "")                            // ช่องว่าง + จุด (ก.ค. -> กค)
+    .replace(/ฏ/g, "ฎ")                               // ปฏัก -> ชฎา
+    .replace(/([ก-๙])\1+/g, "$1");                    // ตัวซ้ำติดกัน กรกฎฎาคม -> กรกฎาคม
+}
+
+// _thaiMonthFuzzy_ — เทียบแบบยอมผิด 1 ตัว (ใส่/ขาด/สลับ) เฉพาะชื่อเดือนเต็ม
+//   ใช้กู้เคสอย่าง "กรมกฏาคม" ที่มี ม เกินมา 1 ตัว
+//   จำกัดเฉพาะชื่อยาว >= 6 เพื่อไม่ให้ตัวย่อ (มค/มิย/พค) ชนกันเอง
+function _thaiMonthFuzzy_(token, normMap) {
+  var t = _thaiMonthKey_(token);
+  if (t.length < 6) return 0;
+  var names = Object.keys(normMap);
+  for (var i = 0; i < names.length; i++) {
+    var n = names[i];
+    if (n.length < 6) continue;
+    if (Math.abs(n.length - t.length) > 1) continue;
+    // edit distance <= 1 แบบตรวจเร็ว (ไม่ต้องสร้างตาราง DP)
+    var a = t.length >= n.length ? t : n, b = t.length >= n.length ? n : t;
+    var i1 = 0, i2 = 0, diff = 0;
+    while (i1 < a.length && i2 < b.length) {
+      if (a[i1] === b[i2]) { i1++; i2++; continue; }
+      if (++diff > 1) break;
+      if (a.length === b.length) { i1++; i2++; } else { i1++; }
+    }
+    diff += (a.length - i1);
+    if (diff <= 1) return normMap[n];
+  }
+  return 0;
+}
+
 function parseThaiMonthDateFromText_(text) {
   var mm = getThaiMonthMap_();
-  var s = String(text||"").replace(/\r?\n/g," ");
+  var s = String(text||"").replace(/\r?\n/g," ")
+                          .replace(/[​‌‍﻿]/g,""); // ตัดตัวล่องหนก่อนเสมอ
 
   // เดิม regex จับ month เป็น token เดียว ([ก-๙.]+) — ถ้าชื่อเดือนติดกับคำอื่น
   // เช่น "เสาร์06มิถุนายน" หรือมี zero-width char คั่น → mm[token] ไม่เจอ → คืน "" → fallback today
@@ -2534,6 +2587,22 @@ function parseThaiMonthDateFromText_(text) {
     if (mm2) {
       Logger.log("[INFO] parseThaiMonthDate matched: dd="+mm2[1]+" month="+mn+"("+mm[mn]+") yy="+mm2[2]);
       return _buildThaiDate_(parseInt(mm2[1],10), mm[mn], parseInt(mm2[2],10));
+    }
+  }
+
+  // 3) ทนการพิมพ์ผิด — normalize key แล้วเทียบ ถ้ายังไม่ติดค่อย fuzzy (ผิดได้ 1 ตัว)
+  //    รองรับเคสจริงจาก log 26/07: กรกฏาคม / กรกฏฏาคม / กรมกฏาคม
+  //    ทำเป็นขั้นสุดท้ายเพื่อไม่ให้ไปแย่ง match ของชื่อที่สะกดถูกอยู่แล้ว
+  var normMap = {};
+  Object.keys(mm).forEach(function(k){ normMap[_thaiMonthKey_(k)] = mm[k]; });
+
+  var mFuzzy = s.match(/(\d{1,2})\s*([ก-๙][ก-๙.\s]*?)\s*(\d{4})/);
+  if (mFuzzy) {
+    var token = mFuzzy[2];
+    var monthNo = normMap[_thaiMonthKey_(token)] || _thaiMonthFuzzy_(token, normMap);
+    if (monthNo) {
+      Logger.log("[INFO] parseThaiMonthDate | สะกดไม่ตรง \""+token.trim()+"\" -> เดือน "+monthNo);
+      return _buildThaiDate_(parseInt(mFuzzy[1],10), monthNo, parseInt(mFuzzy[3],10));
     }
   }
 
