@@ -2043,14 +2043,19 @@ function getOrderRows(filterFn, limit) {
   if (!data || !data.length) return [];
   var rows    = [];
   var maxRows = (limit && limit > 0) ? limit : ORDER_ROWS_DEFAULT_LIMIT;
+  var hitCap  = false;
   for (var i = 0; i < data.length; i++) {
-    if (maxRows > 0 && rows.length >= maxRows) break;
+    if (maxRows > 0 && rows.length >= maxRows) { hitCap = true; break; }
     var raw = data[i];
     if (isRowEffectivelyEmpty_(raw)) continue;
     var obj = rowArrayToObject_(raw, i+2, map);
     if (!hasMeaningfulOrderData_(obj)) continue;
     if (!filterFn || filterFn(obj)) rows.push(obj);
   }
+  // ห้ามตัดข้อมูลเงียบ ๆ — เดิมชนเพดานแล้ว break เฉย ๆ ไม่มีใครรู้ว่าของหาย
+  //   อาการที่เจอ: ปฏิทินเว็บวันที่ 28-31 ว่าง ทั้งที่ plan 7 ใน LINE มีออเดอร์
+  //   เพราะ loop ไล่จากแถวแรก พอเต็มเพดานก็หยุด -> ของท้าย ๆ หลุดหมด
+  if (hitCap) Logger.log("[WARN] getOrderRows | ชนเพดาน "+maxRows+" แถว — ข้อมูลถูกตัด ของท้าย ๆ จะหาย");
   return rows;
 }
 
@@ -3646,11 +3651,16 @@ function parseDateRange(rangeStr) {
   return { start:start, end:end, startStr:parts[0].trim(), endStr:parts.slice(1).join("-").trim() };
 }
 
+// ปฏิทินรายเดือนใช้ตัวนี้ — เพดานต้องสูงพอครอบทั้งเดือน
+//   เดิมตั้ง 500 แต่มันนับ "แถวรายการ" ไม่ใช่จำนวนออเดอร์ (1 ออเดอร์กิน 3-6 แถว)
+//   เดือนที่ออเดอร์เยอะจึงชนเพดาน แล้วออเดอร์ท้ายเดือนหายไปจากปฏิทินเว็บ
+//   ช่วงวันที่ถูกกรองอยู่แล้ว ผลลัพธ์จึงถูกจำกัดด้วยจำนวนออเดอร์จริงในเดือนนั้น
+//   ไม่ใช่ด้วยเพดานนี้ — ตั้งสูงไว้เป็นกันชนกรณีข้อมูลผิดปกติเท่านั้น
 function getOrderRowsByDateRange(startDate, endDate) {
   return getOrderRows(function(r) {
     var d = thDateToDate(r.deliveryDate); // r.deliveryDate normalized
     return d && d >= startDate && d <= endDate;
-  }, 500);
+  }, 20000);
 }
 
 // ============================================================
@@ -9211,10 +9221,13 @@ function _apiCustomer_(p) {
   if (cached) return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
 
   var nameLow = name.toLowerCase().replace(/\s+/g,"");
+  // เพดานสูงพอครอบประวัติทั้งหมดของลูกค้าประจำ (เดิม 500 แถว = ~100 ออเดอร์
+  //   ลูกค้าส่งประจำเกินได้สบายใน 1-2 ปี แล้วประวัติเก่าจะหายไปเงียบ ๆ)
+  //   ถ้าชนเพดานนี้จริง getOrderRows จะ log WARN ให้เห็น
   var rows = getOrderRows(function(r) {
     var c = String(r.customerName||r.tableName||"").toLowerCase().replace(/\s+/g,"");
     return !isRowCancelled(r) && (c === nameLow || c.indexOf(nameLow) > -1 || nameLow.indexOf(c) > -1);
-  }, 500);
+  }, 3000);
 
   var groups = groupRowsByOrder(rows);
   var orders = [];

@@ -59,7 +59,10 @@ export default function OrderCard({
   const isCancelled = order.status === '❌ ยกเลิก';
   const style = getCardStyle(order);
   const itemCount = (order.items || []).length;
-  const firstItems = (order.items || []).slice(0, 3);
+  // ย่อไว้ 3 รายการกันการ์ดยาว แต่กด "+ อีก N รายการ" เพื่อดูครบได้เลย
+  // ไม่ต้องเปิด modal (เดิมดูครบไม่ได้เลยถ้าไม่เปิด)
+  const [showAllItems, setShowAllItems] = useState(false);
+  const firstItems = showAllItems ? (order.items || []) : (order.items || []).slice(0, 3);
   const moreItems = itemCount - firstItems.length;
 
   // swipe actions: ← mark paid, → toggle urgent
@@ -168,7 +171,20 @@ export default function OrderCard({
                 <span className="text-slate-500 shrink-0">{it.qty} {it.unit}</span>
               </div>
             ))}
-            {moreItems > 0 && <div className="text-xs text-slate-400">+ อีก {moreItems} รายการ</div>}
+            {moreItems > 0 && (
+              <button data-no-card-click
+                onClick={(e) => { stop(e); setShowAllItems(true); }}
+                className="text-xs text-sunrise-600 hover:underline text-left">
+                + อีก {moreItems} รายการ
+              </button>
+            )}
+            {showAllItems && itemCount > 3 && (
+              <button data-no-card-click
+                onClick={(e) => { stop(e); setShowAllItems(false); }}
+                className="text-xs text-slate-400 hover:underline text-left">
+                ย่อรายการ
+              </button>
+            )}
           </div>
           <div className="space-y-1 text-xs text-slate-500">
             {/* แตะเบอร์ = โทร / แตะที่อยู่ = เปิด Google Maps */}
