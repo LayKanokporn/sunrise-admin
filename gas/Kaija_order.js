@@ -1,17 +1,5 @@
 // ============================================================
-// 🐔 SUNRISE ORDER BOT — v3.5
-// v3.4: cleanMenuName, normalizeDateText, normalizeDeliveryTime,
-//        parseAddonItem, saveOrderToSheet normalize, reviewFlag,
-//        วันนี้/พรุ่งนี้/วันX, splitCustomerAndSlot, dup-check,
-//        menu check, map alias, buildSaveSuccessText, test wrappers
-// v3.5 PATCH:
-//   [FIX-1] normalizeDateText_: serial BE year (244447) → dd/MM/yyyy BE ถูกต้อง
-//   [FIX-2] normalizeDeliveryTime_: decimal fraction (0.4375) → HH:MM
-//   [FIX-3] cleanMenuName_: รองรับ "- •" double prefix และ ")" prefix
-//   [NEW-1]  plan 7 → buildPlan7TextFast_(): Flex Carousel (1 วัน = 1 Card, แยกร้าน)
-//   [NEW-2]  plan DD/MM → ดูรายละเอียดวันที่เฉพาะแบบ Flex
-//   [NEW-3]  loadAliasMaster_(): โหลด alias จาก Alias_Master sheet
-//   [NEW-4]  resolveMenuAlias() เช็ก Alias_Master ก่อน MENU_ALIAS hardcode
+// 🐔 SUNRISE ORDER BOT — v3.7
 // ============================================================
 
 // ============================================================
@@ -31,7 +19,7 @@ var LINE_CHANNEL_ACCESS_TOKEN = (function() {
 var GEMINI_API_KEY            = ""; // optional
 var SHEET_NAME                = "Orders";
 var LOG_SHEET_NAME            = "Message_Log";
-// [#team] Gamified team board — leaderboard + heartbeat (online status)
+// Gamified team board — leaderboard + heartbeat (online status)
 var TEAM_SHEET_NAME           = "Team";
 var TEAM_POINTS_SHEET_NAME    = "TeamPoints";
 var TEAM_HEARTBEAT_PFX        = "team_hb_";
@@ -43,7 +31,7 @@ var SPREADSHEET_ID            = "1H8zPjxsXzHyxU4EfEfz1DQ6pS2aeKHOfGtRgiqb6Cqo";
 // ลิงก์: https://drive.google.com/drive/folders/1p6bvrSYnC5H9wsGutBVhUjDDxzbFPyKr
 var SLIP_DRIVE_FOLDER_ID      = "1p6bvrSYnC5H9wsGutBVhUjDDxzbFPyKr";
 
-// [v3.5] ADMIN_USER_IDS — userId เต็ม 33 ตัว (เดิมตัดสั้น → push fail 400)
+// ADMIN_USER_IDS — userId เต็ม 33 ตัว (เดิมตัดสั้น → push fail 400)
 var ADMIN_USER_IDS = [
   "U1c711cb38826f95e3e3f4302fd089771",  // Lay
   "Uca1783c1b9dcbfc170e02d514de1ad40",  // พี่หม่อน
@@ -53,7 +41,7 @@ var ADMIN_USER_IDS = [
   "U9937d9e6dbfd3f5a007124e423812bf4"
 ];
 
-// [v3.6] USER_NAMES — แสดงชื่อแทน userId ในแจ้งเตือน/audit log
+// USER_NAMES — แสดงชื่อแทน userId ในแจ้งเตือน/audit log
 var USER_NAMES = {
   "U1c711cb38826f95e3e3f4302fd089771": "Lay",
   "Uca1783c1b9dcbfc170e02d514de1ad40": "พี่หม่อน",
@@ -71,7 +59,7 @@ function nameOf_(uid) {
   return u.substring(0,8) + "...";
 }
 
-// [v3.5] NOTIFY_TO_USER_IDS — รับแจ้งเตือนออเดอร์ใหม่/cancel/status
+// NOTIFY_TO_USER_IDS — รับแจ้งเตือนออเดอร์ใหม่/cancel/status
 var NOTIFY_TO_USER_IDS = [
   "U1c711cb38826f95e3e3f4302fd089771",  // Lay
   "Uca1783c1b9dcbfc170e02d514de1ad40",  // พี่หม่อน
@@ -82,15 +70,15 @@ var NOTIFY_TO_USER_IDS = [
 ];
 
 // ── Feature flags ──
-// [v3.5.6] OPEN_ACCESS — true = ใครก็ตามที่ login LINE ดู Dashboard ได้ (เปิดให้ทุกคน)
+// OPEN_ACCESS — true = ใครก็ตามที่ login LINE ดู Dashboard ได้ (เปิดให้ทุกคน)
 //   false = เฉพาะ ADMIN_USER_IDS + NOTIFY_TO_USER_IDS เท่านั้น (default ปลอดภัยกว่า)
 var DASHBOARD_OPEN_ACCESS      = true;   // ⚠️ true = ทุก LINE user เข้า dashboard ได้ (อ่าน)
-// [v3.6.5] DASHBOARD_OPEN_WRITE — true = ทุก LINE user แก้/เพิ่ม/ลบออเดอร์ได้
+// DASHBOARD_OPEN_WRITE — true = ทุก LINE user แก้/เพิ่ม/ลบออเดอร์ได้
 //   ⚠️ ปลอดภัยน้อย: คนที่ได้ link จะแก้ของกันได้
 //   ⚠️ ตอนนี้ true เพราะแอดมินอยากให้ทีมเปิดออเดอร์ได้ผ่านเว็บ
 var DASHBOARD_OPEN_WRITE       = true;
 var ENABLE_AI_AUTO_REPLY       = false;
-// [#quota] ปิดเพื่อประหยัด push quota — ทุกครั้งที่มีคนกรอก/ยกเลิกออเดอร์ ไม่ต้อง push 1:1 หาแอดมินอีก
+// ปิดเพื่อประหยัด push quota — ทุกครั้งที่มีคนกรอก/ยกเลิกออเดอร์ ไม่ต้อง push 1:1 หาแอดมินอีก
 //   เปิดกลับได้ทันทีถ้าต้องการ (set = true)
 var ENABLE_PUSH_NEW_ORDER      = false;
 var ENABLE_PUSH_CANCEL         = false;
@@ -126,7 +114,7 @@ var SHOP_AREA      = "ลำลูกกา สายไหม รังสิ�
 var SHOP_MAP_URL   = "https://maps.app.goo.gl/tuUZKpKzoS99agtb9?g_st=ic";
 var PLAN7_TEXT_LIMIT = 4500;
 
-// [v3.5.5] LIFF Dashboard URL — ปุ่ม "📥 เปิด Dashboard" ใน notification
+// LIFF Dashboard URL — ปุ่ม "📥 เปิด Dashboard" ใน notification
 //   ใช้ liff.line.me/<LIFF_ID> เพื่อเปิดใน LINE in-app browser
 //   ถ้าเปิดจาก desktop จะ redirect ไป Vercel โดยอัตโนมัติ
 var LIFF_DASHBOARD_URL = "https://liff.line.me/2010252909-W29OzwLC";
@@ -258,7 +246,7 @@ var DELIVERY_SLOT_ALIAS = {
 // ★ NEW v3.4 — NORMALIZE HELPERS
 // ============================================================
 
-// [FIX-3] cleanMenuName_ — ลบ prefix -, •, 1.), ) หน้าชื่อเมนู (loop จนหมด)
+// cleanMenuName_ — ลบ prefix -, •, 1.), ) หน้าชื่อเมนู (loop จนหมด)
 function cleanMenuName_(name) {
   var s = String(name||"").trim();
   var prev = "";
@@ -280,7 +268,7 @@ function normalizeDateText_(value) {
     var dd = Utilities.formatDate(value, TIMEZONE, "dd");
     var mm = Utilities.formatDate(value, TIMEZONE, "MM");
     var yy = parseInt(Utilities.formatDate(value, TIMEZONE, "yyyy"), 10);
-    // [FIX-1] GAS บันทึก BE ผ่าน serial → year ที่ได้มักเกิน 2400
+    // GAS บันทึก BE ผ่าน serial → year ที่ได้มักเกิน 2400
     // ถ้า year > 2400 → แปลงจาก serial-as-BE มาเป็น BE string ตรงๆ
     // ถ้า year <= 2400 → ปี CE → +543 → BE
     if (yy > 2400) return dd+"/"+mm+"/"+yy; // year ใหญ่ = BE อยู่แล้ว
@@ -295,7 +283,7 @@ function normalizeDateText_(value) {
   if (/^\d{5,6}$/.test(s)) {
     var serial = Number(s);
     var epoch  = new Date((serial - 25569) * 86400 * 1000);
-    // [FIX-1] year จาก epoch: ถ้า > 2400 = GAS เซฟ BE เป็น serial → คงไว้
+    // year จาก epoch: ถ้า > 2400 = GAS เซฟ BE เป็น serial → คงไว้
     var ey = epoch.getUTCFullYear();
     var em = epoch.getUTCMonth() + 1;
     var ed = epoch.getUTCDate();
@@ -320,7 +308,7 @@ function normalizeDateText_(value) {
   var slashM = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
   if (slashM) {
     var sd = parseInt(slashM[1],10), sm = parseInt(slashM[2],10), sy = parseInt(slashM[3],10);
-    // [FIX] 2-digit BE year: 69 = 2569 (ไม่ใช่ CE 69 → +2543=2612)
+    // 2-digit BE year: 69 = 2569 (ไม่ใช่ CE 69 → +2543=2612)
     // ตัดสินจาก context: ถ้า 2-digit มักเป็น BE ย่อ เช่น 69=2569, 70=2570
     if (sy < 100) sy += 2500;       // 69 → 2569 BE
     else if (sy < 2400) sy += 543;  // CE 4-digit → BE
@@ -436,12 +424,12 @@ function repairDateInTimeField(apply) {
            movedCount:moved.length, cleanOnlyCount:cleanOnly.length, applied:hits.length };
 }
 
-// [FIX-2] normalizeDeliveryTime_ — decimal fraction + ห้าม serial/ISO/วันที่ ใน Delivery Time
+// normalizeDeliveryTime_ — decimal fraction + ห้าม serial/ISO/วันที่ ใน Delivery Time
 function normalizeDeliveryTime_(value) {
   if (!value) return "";
   var s = String(value).trim();
   if (!s || s === "ไม่มี") return "";
-  // [FIX-2] decimal fraction of day เช่น 0.4375 = 10:30, 0.5833 = 14:00
+  // decimal fraction of day เช่น 0.4375 = 10:30, 0.5833 = 14:00
   if (/^0\.\d+$/.test(s)) {
     var frac = parseFloat(s);
     var totalMin = Math.round(frac * 24 * 60);
@@ -452,7 +440,7 @@ function normalizeDeliveryTime_(value) {
   if (/^\d{5,6}$/.test(s)) return ""; // serial number → empty
   if (/T\d{2}:\d{2}/.test(s)) return ""; // ISO datetime → empty
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return ""; // ISO date → empty
-  // [FIX 26/07] วันที่รูปแบบอื่นก็ห้ามอยู่ในช่องเวลา — เดิมกันแค่ serial/ISO
+  // วันที่รูปแบบอื่นก็ห้ามอยู่ในช่องเวลา — เดิมกันแค่ serial/ISO
   //   ข้อความไทย "25 กรกฎาคม 2569" และ "25/07/2569" หลุด return s ไปโชว์เป็นเวลาส่ง
   //   (เห็นใน plan 7 เป็น "ชื่อร้าน (25 กรกฎาคม 2569)")
   if (_dateFromTimeField_(s)) return "";
@@ -1142,13 +1130,13 @@ function detectOrderPattern_(text) {
   if (/\*{1,2}\s*[\d,]+\s*฿?/.test(t) && /รวม\s*[\d,]+/.test(t)) return "short_calculated";
 
   // shop_summary: มี "ออเดอร์รอบส่ง/รอบส่ง" + (มี "รวม" หรือ มีบรรทัดเมนูที่มีราคา)
-  // [v3.5.2 FIX] เดิมบังคับต้องมี "รวม" → ออเดอร์เมนูเดียวที่ไม่พิมพ์ "รวม" ตก unknown
-  // [v3.5.4 FIX] เพิ่ม pattern "ชื่อเมนู ราคา฿" (ไม่มีจำนวน+หน่วย) — รับออเดอร์เค้กวงที่พิมพ์ราคาเฉยๆ
+  // เดิมบังคับต้องมี "รวม" → ออเดอร์เมนูเดียวที่ไม่พิมพ์ "รวม" ตก unknown
+  // เพิ่ม pattern "ชื่อเมนู ราคา฿" (ไม่มีจำนวน+หน่วย) — รับออเดอร์เค้กวงที่พิมพ์ราคาเฉยๆ
   var _hasItemLine = /\d+\s*(ชิ้น|วง|กล่อง|ถุง|อัน|แผ่น|ลูก|ถาด|ห่อ|ปอนด์|ปอนด์ครึ่ง|กก|กิโล|kg|เซท|set|P|คู่)\s*[\d,]+\s*฿?/i.test(t)
                   || /^[ก-๙a-zA-Z][^\n\r]{2,40}\s+[\d,]{2,5}\s*฿/im.test(t);
   if (/(ออเดอร์รอบส่ง|รอบส่ง)/i.test(t) && (/รวม\s*[\d,]+/.test(t) || _hasItemLine)) return "shop_summary";
 
-  // [FIX] loose_header: รองรับ emoji prefix เช่น "📝 ออเดอร์ วันทร์" ด้วย  แทน ^
+  // loose_header: รองรับ emoji prefix เช่น "📝 ออเดอร์ วันทร์" ด้วย  แทน ^
   if (/ออเดอร์\s+(วัน|จันทร์|อังคาร|พุธ|พฤหัส|ศุกร์|เสาร์|อาทิตย์|\d{1,2}\s*[ก-๙])/i.test(t) && /รวม\s*[\d,]+/.test(t)) return "loose_header";
 
   // manual_summary: บรรทัดแรกเป็นชื่อร้าน + "ส่งวัน..." แล้วมีรายการ bullet + รวม
@@ -1169,7 +1157,7 @@ function detectOrderPattern_(text) {
   if (/(โอน|สลิป|จ่าย|ชำระ|tranfer|transfer)/i.test(t) && !/รวม\s*[\d,]+/.test(t)) return "payment_notice";
 
   // short cafe: lines ส่วนใหญ่เป็น "ชื่อเมนู + ตัวเลข"
-  // [FIX] ต้องมีอย่างน้อย 2 lines และ line แรกไม่ใช่ command สั้นๆ
+  // ต้องมีอย่างน้อย 2 lines และ line แรกไม่ใช่ command สั้นๆ
   var lines = t.split("\n").map(function(s){return s.trim();}).filter(Boolean);
   // กัน command สั้น เช่น "plan 7" "summary 7" "help" ออก
   if (lines.length < 2) return "unknown";
@@ -1338,7 +1326,7 @@ function parseLooseHeaderOrder_(text) {
   var deliveryDateStr = parseThaiMonthDateFromText_(normalized);
 
   // parse deliverySlot จาก header (เช่น "วันทร์" "วันศุกร์" ฯลฯ)
-  // [FIX] เพิ่ม วันทร์(จันทร์ย่อ), พฤหัสบดี, ราย slot ย่อทั้งหมด
+  // เพิ่ม วันทร์(จันทร์ย่อ), พฤหัสบดี, ราย slot ย่อทั้งหมด
   var DAY_SLOT_MAP_ = {"วันทร์":"จันทร์","จันทร์":"จันทร์","วันจันทร์":"จันทร์","อังคาร":"อังคาร","วันอังคาร":"อังคาร","พุธ":"พุธ","วันพุธ":"พุธ","พฤหัส":"พฤหัส","วันพฤหัส":"พฤหัส","พฤหัสบดี":"พฤหัส","ศุกร์":"ศุกร์","วันศุกร์":"ศุกร์","เสาร์":"เสาร์","วันเสาร์":"เสาร์","อาทิตย์":"อาทิตย์","วันอาทิตย์":"อาทิตย์"};
   var slotM = normalized.match(/(?:ออเดอร์)?\s*(วันทร์|วันจันทร์|จันทร์|วันอังคาร|อังคาร|วันพุธ|พุธ|วันพฤหัส|พฤหัส|พฤหัสบดี|วันศุกร์|ศุกร์|วันเสาร์|เสาร์|วันอาทิตย์|อาทิตย์)/i);
   var deliverySlot = slotM ? (DAY_SLOT_MAP_[slotM[1]] || slotM[1]) : "";
@@ -1419,7 +1407,7 @@ function parseManualSummaryOrder_(text) {
     tableName:    customer || "",
     phone:"", channel:"LINE", orderType:"Wholesale",
     deliveryType:"Delivery",
-    // [FIX Bug 3] deliveryTime = เวลาจริง (10:00), deliverySlot = วัน (เสาร์)
+    // deliveryTime = เวลาจริง (10:00), deliverySlot = วัน (เสาร์)
     deliveryTime: deliveryTime || "",
     deliverySlot: deliverySlot || deliveryTime || "",
     location:customer||"", googleMap:"", deliveryFee:deliveryFee,
@@ -2638,7 +2626,7 @@ function parseTaggedLocation_(text) {
   if (mLine) rawName = mLine[1].trim();
   else {
     // 2. @Name อยู่กลางบรรทัด: "...2569@Trust อารีย์"
-    // [FIX] ใช้ regex ที่ match @ที่ตามด้วย non-space ทันที (GAS-compatible, ไม่ใช้ lookbehind)
+    // ใช้ regex ที่ match @ที่ตามด้วย non-space ทันที (GAS-compatible, ไม่ใช้ lookbehind)
     // pattern: [ไม่ใช่ space]@ หรือ ขึ้นต้นด้วย @ ตามด้วย non-space
     var mInline = t.match(/\S@([^\n\r@,\s][^\n\r@,]*)/);
     if (!mInline) {
@@ -2653,7 +2641,7 @@ function parseTaggedLocation_(text) {
   return split.customer || rawName;
 }
 
-// [v3.5.1] _stripLineNoise_ — ลบ whitespace, zero-width, emoji, bullet, numbered prefix
+// _stripLineNoise_ — ลบ whitespace, zero-width, emoji, bullet, numbered prefix
 // รับ text แบบไหนก็ปกติ: "  📝 - 1. มะพร้าว..." → "มะพร้าว..."
 function _stripLineNoise_(s) {
   if (!s) return "";
@@ -2680,7 +2668,7 @@ function _stripLineNoise_(s) {
 }
 
 function parseItemsFlexible_(text) {
-  // [v3.5.5] รับ user-typed orders แบบสุดยืดหยุ่น
+  // รับ user-typed orders แบบสุดยืดหยุ่น
   //   normalize whitespace: NBSP/tab → space, multiple spaces collapse
   var normalized = String(text||"").replace(/\r/g,"").replace(/[\u00A0\t]/g," ");
   var lines = normalized.split("\n");
@@ -2759,15 +2747,15 @@ function looksLikeFlexibleOrderText_(text) {
   // รองรับทั้ง "รอบส่ง" และ "ออเดอร์ วัน..." (loose header)
   var hasOrderHeader = /ออเดอร์รอบส่ง|รอบส่ง/i.test(text) ||
                        (/^ออเดอร์\s+/im.test(text) && /\d{1,2}\s*[ก-๙.]+\s*\d{4}/.test(text));
-  // [v3.5.2 FIX] "รวม" เป็น optional — ออเดอร์เมนูเดียวที่ไม่พิมพ์ "รวม" ก็ต้องรับได้
+  // "รวม" เป็น optional — ออเดอร์เมนูเดียวที่ไม่พิมพ์ "รวม" ก็ต้องรับได้
   //   จุดยืนยันว่าเป็นออเดอร์ = header + มีบรรทัดเมนูที่มีจำนวน+หน่วย+ราคา
-  // [v3.5.4 FIX] เพิ่ม pattern "ชื่อเมนู ราคา฿" (ไม่มีจำนวน+หน่วย)
+  // เพิ่ม pattern "ชื่อเมนู ราคา฿" (ไม่มีจำนวน+หน่วย)
   var hasItemLine = /\d+\s*(ชิ้น|วง|กล่อง|ถุง|อัน|แผ่น|ลูก|ถาด|ห่อ|ปอนด์|ปอนด์ครึ่ง|กก|กิโล|kg|เซท|set|P|คู่)\s*[\d,]+\s*฿?/i.test(text)
                  || /^[ก-๙a-zA-Z][^\n\r]{2,40}\s+[\d,]{2,5}\s*฿/im.test(text);
   return hasOrderHeader && hasItemLine;
 }
 
-// [v3.5.2] _normalizeIncomingText_ — ลบตัวอักษรล่องหนทุกชนิดจากข้อความที่ user ส่งเข้ามา
+// _normalizeIncomingText_ — ลบตัวอักษรล่องหนทุกชนิดจากข้อความที่ user ส่งเข้ามา
 //   สาเหตุ: ฟอนต์ตกแต่ง/คีย์บอร์ดพิเศษ (เช่นชื่อ "Layylaliss•𐐪ї𐑂") แทรก:
 //     U+200B zero-width space, U+200C/D zero-width joiner, U+200E/F LTR/RTL mark,
 //     U+FEFF BOM, U+2060 word joiner, U+00A0 NBSP, U+2028/9 line/para separator
@@ -2785,7 +2773,7 @@ function isOrderLikeText_(text) {
   var pat = detectOrderPattern_(text);
   return looksLikeStandardOrderText_(text) ||
          looksLikeFlexibleOrderText_(text) ||
-         pat === "shop_summary" ||      // [v3.5.2 FIX] เดิมพึ่ง looksLikeFlexible อย่างเดียว → ตัวล่องหนใน item ทำให้ false
+         pat === "shop_summary" ||      // เดิมพึ่ง looksLikeFlexible อย่างเดียว → ตัวล่องหนใน item ทำให้ false
          pat === "short_cafe" ||
          pat === "short_calculated" ||
          pat === "loose_header" ||
@@ -2987,7 +2975,7 @@ function saveOrderToSheet_(data, rawText, updatedBy) {
   var nowTs  = getTimestampTH();
   var colLen = sheet.getLastColumn();
 
-  // [FIX 26/07] กู้วันที่ที่หลุดไปอยู่ช่อง "เวลาส่ง"
+  // กู้วันที่ที่หลุดไปอยู่ช่อง "เวลาส่ง"
   //   อาการที่แจ้ง: "รายการมันไม่ไปอยู่ตามวันที่" — ออเดอร์ของวันที่ 25/27 ไปกองอยู่ 26 หมด
   //   สาเหตุ: user พิมพ์วันส่งเป็นข้อความไทย ("25 กรกฎาคม 2569") ในตำแหน่งที่ parser
   //     จับเป็นเวลาส่ง → deliveryTime = วันที่ ส่วน deliveryDate หาไม่เจอ → fallback เป็นวันนี้
@@ -3214,7 +3202,7 @@ function appendItemsToOrder_(orderId, newItems, updatedBy) {
 }
 
 // แสดงรายการออเดอร์ล่าสุดให้เลือกแก้/เพิ่ม
-// [v3.5.4] buildShopsListFlex_ — list ร้านที่มีออเดอร์ค้างส่ง พร้อมปุ่ม "ดูร้านนี้"
+// buildShopsListFlex_ — list ร้านที่มีออเดอร์ค้างส่ง พร้อมปุ่ม "ดูร้านนี้"
 //   แสดงเฉพาะ status != ส่งแล้ว/completed/ยกเลิก และ deliveryDate ยังไม่ผ่าน
 function buildShopsListFlex_() {
   // ดึงออเดอร์ที่ยังไม่ยกเลิก ใน range วันนี้ → +14 วัน
@@ -3396,7 +3384,7 @@ function updateOrderStatus_(orderId, status, updatedBy) {
   ];
   if (allowed.indexOf(status) === -1) return { ok:false, message:"status ไม่ถูกต้อง: "+status };
   var res = updateOrderField_(orderId, { status:status }, updatedBy||"system");
-  // [v3.6.2] ปิด broadcast "เปลี่ยนสถานะ" ทั้งหมด
+  // ปิด broadcast "เปลี่ยนสถานะ" ทั้งหมด
   //   - user action: ผู้กดเห็นใน reply อยู่แล้ว
   //   - system trigger: เปลี่ยนใน sheet เงียบ ๆ ไม่รบกวนใคร
   // (ถ้าต้องการ broadcast cron กลับมา ให้ลบ "false &&" ออก)
@@ -3576,7 +3564,7 @@ function buildOrderCardFlex(orderId, rows) {
   var deliveryTimeStr = mainRow.deliveryTime;
   var passed   = isDeliveryPassed(deliveryDateStr, mainRow.deliveryTime);
   var isCancelled = mainRow.status==="❌ ยกเลิก";
-  // [v3.6.6] เช็ค status ว่าส่งแล้วไหม — รวมเทาเมื่อ delivered (แม้ยังไม่ถึงเวลา)
+  // เช็ค status ว่าส่งแล้วไหม — รวมเทาเมื่อ delivered (แม้ยังไม่ถึงเวลา)
   var statusLow = String(mainRow.status||"").toLowerCase();
   var isDelivered = /completed|delivered|ส่งแล้ว/.test(statusLow);
   var isDone = passed || isCancelled || isDelivered;   // เทาเมื่อจบงาน
@@ -3649,7 +3637,7 @@ function buildOrderCardFlex(orderId, rows) {
     ]},
     body:{type:"box",layout:"vertical",paddingAll:"16px",spacing:"md",contents:bodyContents}
   };
-  // [v3.6.3] footer — เพิ่มปุ่ม "✅ ส่งแล้ว" + แสดงปุ่มแม้ passed
+  // footer — เพิ่มปุ่ม "✅ ส่งแล้ว" + แสดงปุ่มแม้ passed
   //   ก่อนหน้า: ถ้า passed ไม่แสดงปุ่มเลย → user mark ส่งแล้วไม่ได้ในการ์ดที่เลยเวลา
   //   ตอนนี้: passed ก็ยังกดได้ (อาจส่งช้า หรือเพิ่งกลับมา mark)
   //   ยกเลิกแล้วเท่านั้น ที่ไม่มีปุ่ม
@@ -3693,7 +3681,7 @@ function buildOrderCardFlex(orderId, rows) {
 function buildOrderListFlex(rows, label) {
   if (!rows.length) return {type:"flex",altText:"🔍 ไม่พบออเดอร์ "+label,contents:buildAlertFlex("🔍 ไม่พบออเดอร์",label,"#FF9500")};
   var orders = groupRowsByOrder(rows);
-  // [v3.6.6] sort: urgent ก่อน → not done → date asc
+  // sort: urgent ก่อน → not done → date asc
   //   done = ส่งแล้ว/เลยเวลา/ยกเลิก → ไปท้าย
   function _isDoneRow_(m) {
     if (m.status === "❌ ยกเลิก") return true;
@@ -4023,7 +4011,7 @@ function buildDayDetailFlex_(dateKey, dayLabel) {
             color:isUrgent?"#4CAF50":undefined,
             action:{type:"message", label:toggleLabel, text:toggleCmd}}
         ]},
-        // [v3.6.3] ปุ่มหลัก ส่งแล้ว (เด่นสุด)
+        // ปุ่มหลัก ส่งแล้ว (เด่นสุด)
         {type:"button", margin:"xs", height:"sm", style:"primary", color:"#4CAF50",
           action:{type:"message", label:"✅ ส่งแล้ว", text:"delivery "+oid+" ส่งแล้ว"}},
         // แถวรอง: ดูรายละเอียด + เพิ่มเมนู
@@ -4576,7 +4564,7 @@ function buildHelpFlex() {
           {type:"button",action:{type:"message",label:"🚨 ออเดอร์ด่วน",text:"summary urgent"},style:"primary",color:"#D32F2F",height:"sm",flex:1},
           {type:"button",action:{type:"message",label:"📋 plan 7",text:"plan 7"},style:"secondary",height:"sm",flex:1}
         ]},
-        // row 2.5 — [v3.5.4] ดูร้านส่ง
+        // row 2.5 — ดูร้านส่ง
         {type:"box",layout:"horizontal",spacing:"sm",contents:[
           {type:"button",action:{type:"message",label:"🏪 ดูร้านส่ง",text:"ดูร้านส่ง"},style:"primary",color:"#1565C0",height:"sm",flex:1},
           {type:"button",action:{type:"message",label:"👁️ ขอดู",text:"ขอดู"},style:"secondary",height:"sm",flex:1}
@@ -4642,7 +4630,7 @@ function lineApiRequest_(url, body) {
   }
 }
 
-// [L1] แสดง loading animation ("...") ในแชท 1:1 ทันทีที่รับออเดอร์ — กันรู้สึกว่าบอทเงียบ
+// แสดง loading animation ("...") ในแชท 1:1 ทันทีที่รับออเดอร์ — กันรู้สึกว่าบอทเงียบ
 //   ใช้ได้เฉพาะแชท 1:1 (LINE API ไม่รองรับ group/room) — seconds ต้องเป็น 5..60 (ทวีคูณ 5)
 function startLoadingAnimation_(userId, seconds) {
   try {
@@ -4711,7 +4699,7 @@ function replyFlexWithQuickReply(replyToken, flexPayload, buttonLabels) {
 }
 
 function pushNotifyText_(message, skipUid) {
-  // [v3.6.1] skipUid = userId ของผู้กระทำ → ข้ามไม่ push ซ้ำ (เขาเห็นใน reply แล้ว)
+  // skipUid = userId ของผู้กระทำ → ข้ามไม่ push ซ้ำ (เขาเห็นใน reply แล้ว)
   var skip = String(skipUid||"").replace(/^liff:/, "");
   getNotifyRecipients_().forEach(function(to){
     if (!to) return;
@@ -4721,7 +4709,7 @@ function pushNotifyText_(message, skipUid) {
 }
 
 
-// [v3.5.3] เช็คว่า userId อยู่ใน whitelist admin หรือไม่
+// เช็คว่า userId อยู่ใน whitelist admin หรือไม่
 function isAdminUser_(userId) {
   if (!userId) return false;
   var list = [].concat(ADMIN_USER_IDS||[], NOTIFY_TO_USER_IDS||[]);
@@ -4729,7 +4717,7 @@ function isAdminUser_(userId) {
   return false;
 }
 
-// [v3.5.6] เช็คสิทธิ์เข้า Dashboard — ถ้า OPEN_ACCESS=true ปล่อยทุก LINE user
+// เช็คสิทธิ์เข้า Dashboard — ถ้า OPEN_ACCESS=true ปล่อยทุก LINE user
 //   ใช้แทน isAdminUser_ เฉพาะที่เช็ค dashboard view (read access)
 //   write API ยังเช็ค isAdminUser_ ตามเดิม (ปลอดภัยกว่า)
 function canViewDashboard_(userId) {
@@ -4946,7 +4934,7 @@ function handleAdminCommand(text, replyToken, userId, source) {
   if (resolved && resolved.toLowerCase() !== lower)
     return handleAdminCommand(resolved, replyToken, userId, source);
 
-  // [v3.5.3] "ขอดู ORD-xxx" — admin-only ดู detail ของออเดอร์ที่ระบุ
+  // "ขอดู ORD-xxx" — admin-only ดู detail ของออเดอร์ที่ระบุ
   var reqViewM = trimmed.match(/^(?:ขอดู|ดูออเดอร์|view)\s+(ORD-\d{8}-\d{6})$/i);
   if (reqViewM) {
     var reqOid = reqViewM[1].toUpperCase();
@@ -4967,7 +4955,7 @@ function handleAdminCommand(text, replyToken, userId, source) {
     return true;
   }
 
-  // [v3.5.3] "ขอดู" router — admin-only หลายแบบ:
+  // "ขอดู" router — admin-only หลายแบบ:
   //   ขอดู             → 5 ล่าสุด
   //   ขอดูล่าสุด 10    → N ล่าสุด (max 12)
   //   ขอดูวันนี้       → ออเดอร์วันนี้
@@ -4977,7 +4965,7 @@ function handleAdminCommand(text, replyToken, userId, source) {
   //   ขอดู<ชื่อร้าน>   → fuzzy search by customer
   //   ขอดู ORD-xxx     → detail (จับด้วย regex แยกด้านบนแล้ว)
   //   ⚠️ ใช้ได้เฉพาะในกลุ่มที่เรียก "ไก่จ๋า" แล้วเท่านั้น (isGroupStandbyActive ที่ doPost บล็อกตั้งแต่ต้น)
-  // [v3.5.3 FIX] รับทั้งติดกัน ("ขอดูวันนี้") และมี space ("ขอดู ทูบา")
+  // รับทั้งติดกัน ("ขอดูวันนี้") และมี space ("ขอดู ทูบา")
   var reqMain = trimmed.match(/^(?:ขอดู|ดูออเดอร์ใหม่|ออเดอร์ใหม่|new\s*order)\s*(.*)$/i);
   if (reqMain && !reqMain[1]) reqMain[1] = "";
   if (reqMain) {
@@ -5022,7 +5010,7 @@ function handleAdminCommand(text, replyToken, userId, source) {
         rows = getLatestUniqueOrderRows_(n);
         heading = "🆕 ออเดอร์ล่าสุด "+n+" รายการ";
       } else {
-        // ชื่อร้าน / ลูกค้า — fuzzy search + [v3.6.4] ตัดยกเลิก
+        // ชื่อร้าน / ลูกค้า — fuzzy search + ตัดยกเลิก
         rows = smartSearch(arg).filter(function(r){ return !isRowCancelled(r); });
         heading = "🔍 ออเดอร์ของ \""+arg+"\"";
       }
@@ -5104,7 +5092,7 @@ function handleAdminCommand(text, replyToken, userId, source) {
     return true;
   }
 
-  // [v3.5.4] "ดูร้านส่ง" / "รายชื่อร้าน" — แสดง list ร้านที่มีออเดอร์ค้างส่ง
+  // "ดูร้านส่ง" / "รายชื่อร้าน" — แสดง list ร้านที่มีออเดอร์ค้างส่ง
   //   ต้องอยู่ก่อน "ดู order ของ..." (ไม่งั้น regex จะกิน "ส่ง" เป็น keyword)
   if (/^(?:ดูร้านส่ง|ดูร้าน|รายชื่อร้าน|รายร้าน|ร้านส่ง|shops?)$/i.test(lower)) {
     replyFlexWithQuickReply(replyToken,
@@ -5113,7 +5101,7 @@ function handleAdminCommand(text, replyToken, userId, source) {
     return true;
   }
 
-  // [v3.5.2] ภาษาคน — "ดู order ของทูบา" / "ออเดอร์ของทูบา" / "หาออเดอร์ทูบา"
+  // ภาษาคน — "ดู order ของทูบา" / "ออเดอร์ของทูบา" / "หาออเดอร์ทูบา"
   // จับชื่อร้าน/ลูกค้า แล้วยิงเข้า smartSearch
   var natCust = trimmed.match(/^(?:ดู|หา|ค้นหา|ค้น|เรียก|โชว์|show)\s*(?:order|ออเดอร์|ออร์เดอร์|รายการ)?\s*(?:ของ|ร้าน|ลูกค้า)?\s*(.+)$/i);
   if (!natCust) {
@@ -5126,7 +5114,7 @@ function handleAdminCommand(text, replyToken, userId, source) {
     var sysWords = /^(today|latest|วันนี้|พรุ่งนี้|ล่าสุด|พรุ่ง|ORD-|\d{1,2}\/\d{1,2})/i;
     if (keyword && keyword.length >= 2 && !sysWords.test(keyword)) {
       var rows = smartSearch(keyword);
-      // [v3.6.4] ตัดออเดอร์ที่ยกเลิกแล้ว — มักเป็นใบที่ถูกแทนที่ด้วยใบใหม่
+      // ตัดออเดอร์ที่ยกเลิกแล้ว — มักเป็นใบที่ถูกแทนที่ด้วยใบใหม่
       rows = rows.filter(function(r){ return !isRowCancelled(r); });
       if (rows.length) {
         replyFlexWithQuickReply(replyToken,
@@ -5717,7 +5705,7 @@ function notifyUpcomingDeliveries() {
     msg += "• "+(main.customerName||"-")+" | "+(main.deliveryTime||"-")+" | "+toNumber(main.grandTotal).toLocaleString()+" บาท\n";
   });
   msg += "\nกดปุ่ม 🏪 ดูร้านส่ง ด้านล่างเพื่อจัดการ 🐔";
-  // [v3.6.1] ส่งเฉพาะกลุ่ม LINE เท่านั้น ไม่ push 1:1 หา admin
+  // ส่งเฉพาะกลุ่ม LINE เท่านั้น ไม่ push 1:1 หา admin
   pushTextToGroups_(msg, { withButtons:true, title:"📦 เตือนออเดอร์พรุ่งนี้ "+tomorrow, color:"#FF6B35" });
 }
 
@@ -5738,7 +5726,7 @@ function weeklyPushSummary() {
   msg += "─────────────────\n📡 Channel:\n";
   topChannels.forEach(function(e){ msg+="• "+e[0]+" — "+e[1]+" ออเดอร์\n"; });
   msg += "─────────────────\nกดปุ่มด้านล่างเพื่อจัดการต่อ 🐔";
-  // [v3.6.1] ส่งเฉพาะกลุ่ม LINE เท่านั้น ไม่ push 1:1 หา admin
+  // ส่งเฉพาะกลุ่ม LINE เท่านั้น ไม่ push 1:1 หา admin
   pushTextToGroups_(msg, { withButtons:true, title:"📊 สรุปสัปดาห์ที่แล้ว", color:"#7C4DFF" });
 }
 
@@ -5945,7 +5933,7 @@ function buildDeliveryDueFlex_(orderId, mainRow, allRows) {
           {type:"button", flex:1, height:"sm", style:"secondary",
             action:{type:"message", label:"⚠️ ส่งไม่สำเร็จ", text:"delivery "+orderId+" ส่งไม่สำเร็จ"}}
         ]},
-        // [v3.5.5] row 3 — ดูร้านส่ง + [v0.9] deep link เปิดเว็บตรงใบนี้
+        // row 3 — ดูร้านส่ง + deep link เปิดเว็บตรงใบนี้
         {type:"box", layout:"horizontal", spacing:"sm", contents:[
           {type:"button", flex:1, height:"sm", style:"secondary",
             action:{type:"message", label:"🏪 ร้านส่ง", text:"ดูร้านส่ง"}},
@@ -6047,7 +6035,7 @@ function notifyMorningBriefing_() {
   try {
     var today = getTodayTH();
     var text  = buildMorningBriefingText_(today);
-    // [v3.5.5] ส่งเป็น flex bubble + ปุ่ม "🏪 ดูร้านส่ง" (ปุ่ม Dashboard ใน footer ลิงก์เดือนปัจจุบันแล้ว)
+    // ส่งเป็น flex bubble + ปุ่ม "🏪 ดูร้านส่ง" (ปุ่ม Dashboard ใน footer ลิงก์เดือนปัจจุบันแล้ว)
     pushTextToGroups_(text, {
       withButtons: true,
       title: "☀️ สรุปงานวันนี้ " + today,
@@ -6060,14 +6048,14 @@ function notifyMorningBriefing_() {
 }
 
 // push text เข้ากลุ่มที่ register (เหมือน pushFlexToGroups_ แต่ text)
-// [v3.5.5] เพิ่ม quick reply buttons ในตัว — บังคับใช้ replyLine API คงไม่ได้ (push ไม่ support QR)
+// เพิ่ม quick reply buttons ในตัว — บังคับใช้ replyLine API คงไม่ได้ (push ไม่ support QR)
 //   วิธีแก้: ห่อข้อความเป็น flex bubble + footer มีปุ่ม "🏪 ดูร้านส่ง" / "👁️ ขอดู" / "plan 7"
 function pushTextToGroups_(text, options) {
   var groups = getNotifyGroupIds_();
   if (!groups.length) { Logger.log("[WARN] no notify groups — เรียก 'ไก่จ๋า' ในกลุ่มก่อน"); return; }
   options = options || {};
 
-  // [v3.5.5] ถ้าระบุ withButtons → ส่งเป็น flex bubble แทน text เดี่ยว
+  // ถ้าระบุ withButtons → ส่งเป็น flex bubble แทน text เดี่ยว
   var messages;
   if (options.withButtons) {
     messages = [_buildNotifyFlexBubble_(text, options.title||"🔔 แจ้งเตือน", options.color||"#1565C0")];
@@ -6083,7 +6071,7 @@ function pushTextToGroups_(text, options) {
   });
 }
 
-// [v3.5.5] _buildNotifyFlexBubble_ — wrap text ในกล่อง flex + ปุ่ม "ดูร้านส่ง" / "ขอดู" / "plan 7"
+// _buildNotifyFlexBubble_ — wrap text ในกล่อง flex + ปุ่ม "ดูร้านส่ง" / "ขอดู" / "plan 7"
 function _buildNotifyFlexBubble_(text, title, headerColor) {
   var t = String(text||"").substring(0, 1900); // flex text limit
   return {
@@ -6122,7 +6110,7 @@ function setupMorningTrigger() {
   return "✅ ตั้งสรุปงานเช้า 7:00 ทุกวันแล้วค่ะ";
 }
 
-// [v3.6.1] keepWarm_ — รัน function เปล่าๆ ทุก 4 นาที กัน Apps Script cold start
+// keepWarm_ — รัน function เปล่าๆ ทุก 4 นาที กัน Apps Script cold start
 //   GAS instance หลังไม่ใช้ 5 นาที จะถูกฆ่า — รอบหน้าโหลด lib + cache miss = 1-2s ช้า
 //   วิธีแก้: ทำ heartbeat ทุก 4 นาที = instance ไม่ตาย → API ตอบ <500ms ตลอด
 function keepWarm_() {
@@ -6147,7 +6135,7 @@ function setupKeepWarmTrigger() {
 function runMorningBriefingNow() { notifyMorningBriefing_(); }
 
 // ============================================================
-// [v3.6.2/B5] รายงานเงินรายวัน 21:00 เข้ากลุ่ม
+// รายงานเงินรายวัน 21:00 เข้ากลุ่ม
 //   ยอดวันนี้: รับแล้วกี่บาท / ค้างจ่ายกี่ราย + ลิงก์ dashboard
 // ============================================================
 function notifyDailyMoneyReport_() {
@@ -6198,7 +6186,7 @@ function setupDailyMoneyReportTrigger() {
 function runDailyMoneyReportNow() { notifyDailyMoneyReport_(); }
 
 // ============================================================
-// [v3.7] DAILY SUMMARY FLEX — สรุปยอดขายแบบการ์ด (อ้างอิงดีไซน์ SSB BOT)
+// DAILY SUMMARY FLEX — สรุปยอดขายแบบการ์ด (อ้างอิงดีไซน์ SSB BOT)
 //   ยังไม่สับเปลี่ยน trigger เดิม — ทดสอบผ่าน runDailySummaryFlexNow() ก่อน
 //   ฟีเจอร์: hero number / เทียบเมื่อวาน / เทียบสัปดาห์ก่อน(วันเดียวกัน) / เป้าเดือน progress+pacing
 //   ไม่รวม: มัดจำ, Inquiry/Leads — ไม่มี data source ใน sheet ตอนนี้ (phase 2)
@@ -6382,7 +6370,7 @@ function switchToDailySummaryFlexTrigger() {
   return "✅ สับเปลี่ยนเป็น Flex card 21:00 แล้วค่ะ (ของเดิม notifyDailyMoneyReport_ ถูกปลด trigger)";
 }
 
-// [#quota] เช็คว่าใช้ push quota เดือนนี้ไปกี่ข้อความ + ประเมินว่าจะหมดเร็วแค่ไหน
+// เช็คว่าใช้ push quota เดือนนี้ไปกี่ข้อความ + ประเมินว่าจะหมดเร็วแค่ไหน
 //   นับจาก: จำนวนกลุ่มที่ลงทะเบียน × จำนวน trigger ที่ยิง push ต่อวัน
 //   หมายเหตุ: นับเฉพาะ "การยิง push แน่นอนทุกวัน" — notifyDueDeliveries_ ไม่นับเพราะขึ้นกับจำนวนออเดอร์จริง
 function estimateMonthlyPushUsage_() {
@@ -6422,7 +6410,7 @@ function estimateMonthlyPushUsage_() {
   return msg;
 }
 
-// [#quota] ปลด trigger ทุกตัวที่กิน push quota ยกเว้น notifyMorningBriefing_ — ใช้ตอนต้องการประหยัด quota เร่งด่วน
+// ปลด trigger ทุกตัวที่กิน push quota ยกเว้น notifyMorningBriefing_ — ใช้ตอนต้องการประหยัด quota เร่งด่วน
 //   ตัดแน่ๆ: notifyUpcomingDeliveries (18:00), weeklyPushSummary (จันทร์ 8:00),
 //            notifyDailyMoneyReport_/notifyDailySummaryFlex_ (21:00)
 //   notifyDueDeliveries_ (ทุก 5 นาที, real-time "ถึงเวลาส่ง") — ยังไม่ตัด รอยืนยันก่อน เพราะกระทบ operation จริง
@@ -6789,7 +6777,7 @@ function markOrderPaidWithSlip_(orderId, slipUrl, slipDate, slipTime) {
   }
 }
 
-// [v3.7] ยกเลิกสถานะชำระ — กรณีกดชำระแล้วผิด (web/LINE)
+// ยกเลิกสถานะชำระ — กรณีกดชำระแล้วผิด (web/LINE)
 //   ล้าง paymentStatus + paymentDate กลับเป็นค้างชำระ (เก็บ note สลิปเดิมไว้เป็นหลักฐาน)
 function unmarkOrderPaid_(orderId) {
   try {
@@ -7100,7 +7088,7 @@ function loadCustomAliases_() {
 // ============================================================
 function doPost(e) {
   var replyToken = null;
-  var _hadEventError = false; // [B1] health tracking
+  var _hadEventError = false; // health tracking
   try {
     // Verify webhook timeout — return เร็วที่สุดถ้าไม่มี events
     // เดิม: load alias ก่อน parse → cold start 2-3 วิ → LINE timeout 1 วิ
@@ -7149,11 +7137,11 @@ function doPost(e) {
         var sourceType = source.type||"";
         if (isDuplicate(messageId)) continue;
 
-        // [v3.5.2 FIX] strip ตัวอักษรล่องหน (zero-width space/joiner ฯลฯ) ที่ฟอนต์ตกแต่งแทรกมา
+        // strip ตัวอักษรล่องหน (zero-width space/joiner ฯลฯ) ที่ฟอนต์ตกแต่งแทรกมา
         //   ก่อน trim — เดิม ZWSP ใน item line ทำให้ \s ใน regex ไม่ match → isOrderLikeText=false → "ไม่พบข้อมูล"
         var text  = _normalizeIncomingText_(event.message.text).trim();
         var lower = text.toLowerCase(); // เดิม lower ไม่ได้ declare → ReferenceError ตอน "บันทึกซ้ำ" check
-        // [v3.5.1] trace ทุก incoming — ดูได้ใน ?log=1
+        // trace ทุก incoming — ดูได้ใน ?log=1
         try { dbg_("IN", text.substring(0,50).replace(/\n/g," "), {src:sourceType, pat:detectOrderPattern_(text), isOrder:isOrderLikeText_(text)}); } catch(_dbgE){}
 
         if (sourceType==="group"||sourceType==="room") {
@@ -7214,7 +7202,7 @@ function doPost(e) {
 
         // 4. Order save flow
         if (isOrderLikeText_(text)) {
-          // [L1] เด้ง loading animation ทันที (1:1) ก่อน parse+save ที่กินเวลา
+          // เด้ง loading animation ทันที (1:1) ก่อน parse+save ที่กินเวลา
           startLoadingAnimation_(userId, 10);
           try {
             // ตรวจซ้ำก่อน parse
@@ -7242,7 +7230,7 @@ function doPost(e) {
                 return null; // รอ user เลือก
               }
               var oid = saveOrderToSheet_(orderData, text, userId||"line");
-              // [v3.5.3] ไม่ push แอดมินคนอื่น — รอเขาพิมพ์ "ขอดู" เอง
+              // ไม่ push แอดมินคนอื่น — รอเขาพิมพ์ "ขอดู" เอง
               //   submitter ได้ reply detail เต็มอยู่แล้ว
               //   admin อื่นต้องเรียกดูเอง → ประหยัด push quota + privacy
               recordUndo_({type:"save", orderId:oid, label:"บันทึก "+(orderData.customerName||"-")}); //
@@ -7349,7 +7337,7 @@ function doPost(e) {
 
         // log unmatched text เพื่อหา pattern ใหม่ที่ระบบไม่รู้จัก
         Logger.log("[WARN] unmatched text (no order pattern + no AI): "+text.substring(0,200).replace(/\n/g," | "));
-        // [v3.5.1] trace fallback — บอกชัดว่าทำไม isOrderLikeText=false
+        // trace fallback — บอกชัดว่าทำไม isOrderLikeText=false
         try { dbg_("FALLBACK", "ไม่พบข้อมูล", {text:text.substring(0,60).replace(/\n/g," "), pat:detectOrderPattern_(text), isOrder:isOrderLikeText_(text)}); } catch(_d){}
         replyFlexWithQuickReply(replyToken, buildNotFoundFlex(), QR_MAIN);
         appendMessageLog_(event,text,effectiveText,"fallback","fallback");
@@ -7378,7 +7366,7 @@ function doPost(e) {
 }
 
 // ============================================================
-// [v3.6.2/B1] HEALTH ALERT — error-driven ไม่ ping ตลอด
+// HEALTH ALERT — error-driven ไม่ ping ตลอด
 //   นับ error ติดกันใน ScriptProperties → ครบ N ครั้ง push แจ้ง Lay คนเดียว
 //   มี cooldown กันสแปม + reset ทันทีที่มี request สำเร็จ
 // ============================================================
@@ -7903,7 +7891,7 @@ function runDoPostE2E() {
 
 // === ฟังก์ชันสำหรับเทสแบบ interactive — ใส่ text เองได้ ===
 // วิธีใช้: ไปแก้ค่า _MY_TEST_TEXT ด้านล่าง แล้วกด Run เลือก runMyTest
-// [v3.5.1] เทสออเดอร์บ้านปู่ส่วนย่า ที่ user ส่งเข้ามาว่าไม่ผ่าน
+// เทสออเดอร์บ้านปู่ส่วนย่า ที่ user ส่งเข้ามาว่าไม่ผ่าน
 //   - มี leading space บรรทัดแรก
 //   - มี blank lines แทรก
 //   - ชื่อร้านมี ":" (FB: Myrhh TB)
@@ -8207,7 +8195,7 @@ function runMyTest() {
 }
 
 // ============================================================
-// [v3.5] 🔬 LIVE DIAGNOSTIC — เช็คครบทุกจุดที่ทำให้ LINE save ไม่ได้
+// 🔬 LIVE DIAGNOSTIC — เช็คครบทุกจุดที่ทำให้ LINE save ไม่ได้
 // รัน: เลือก diagnoseLiveLineFailure → กด ▶ Run → ดู Logs
 // ============================================================
 function diagnoseLiveLineFailure() {
@@ -8485,7 +8473,7 @@ function clearAllDupHashes_() {
 }
 
 // ============================================================
-// [v3.5] เช็ค LINE message quota — ใช้ไปกี่ข้อความแล้ว
+// เช็ค LINE message quota — ใช้ไปกี่ข้อความแล้ว
 // รัน: เลือก checkLineQuota → ▶ Run → ดู Logs
 // ============================================================
 function checkLineQuota() {
@@ -8553,7 +8541,7 @@ function checkLineQuota() {
 }
 
 // ============================================================
-// [v3.5] หา LINE userId ของคุณ — จาก Message_Log sheet
+// หา LINE userId ของคุณ — จาก Message_Log sheet
 // รัน: ส่งข้อความใน LINE ก่อน แล้วมารันฟังก์ชันนี้
 // ============================================================
 function findMyLineUserId() {
@@ -8615,7 +8603,7 @@ function findMyLineUserId() {
 }
 
 // ============================================================
-// [v3.5.1] 🎥 กล้องวงจรปิด — อ่าน Message_Log ว่าออเดอร์จริงเดินไป path ไหน
+// 🎥 กล้องวงจรปิด — อ่าน Message_Log ว่าออเดอร์จริงเดินไป path ไหน
 // คอลัมน์ J "Handled By" บอกผลลัพธ์: save / ask_overwrite / dup_skip / fallback / error
 // รัน: หลังส่งออเดอร์ใน LINE แล้ว → เลือก showRecentMessageLog_ → ▶ Run
 // ============================================================
@@ -8672,7 +8660,7 @@ function showRecentMessageLog_() {
 }
 
 // ============================================================
-// [v3.5.1] 📝 DEBUG LOG — บันทึก log เป็น text ดูง่าย (2 ช่องทาง)
+// 📝 DEBUG LOG — บันทึก log เป็น text ดูง่าย (2 ช่องทาง)
 //   1. sheet "Debug_Log"  — เปิดใน Google Sheets อ่านได้เลย
 //   2. doGet web viewer    — เปิด URL ใน browser เห็น text ทันที ไม่ต้องเข้า Apps Script
 //
@@ -8736,7 +8724,7 @@ function doGet(e) {
     var p = (e && e.parameter) ? e.parameter : {};
     var n = Math.min(parseInt(p.n,10) || 60, 500);
 
-    // [v3.6] LIFF Dashboard API
+    // LIFF Dashboard API
     if (p.api) return _apiRouter_(p);
 
     // ?log=msg → ดู Message_Log (พร้อม verdict)
@@ -8757,7 +8745,7 @@ function doGet(e) {
 }
 
 // ============================================================
-// [v3.6] LIFF DASHBOARD API
+// LIFF DASHBOARD API
 // ============================================================
 function _apiJson_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
@@ -8767,7 +8755,7 @@ function _apiJson_(obj) {
 function _apiRouter_(p) {
   try {
     var action = String(p.api||"").toLowerCase();
-    // [v3.6.5] Write actions — เช็คตาม DASHBOARD_OPEN_WRITE
+    // Write actions — เช็คตาม DASHBOARD_OPEN_WRITE
     //   ถ้า OPEN_WRITE=true → ทุก LINE user (uid ใดก็ได้) แก้/เพิ่ม/ลบได้
     //   ถ้า OPEN_WRITE=false → เฉพาะ ADMIN_USER_IDS
     var writeActions = ["update","urgent","paid","cancel","status","note","additem","removeitem","parsesave","announce"];
@@ -8777,7 +8765,7 @@ function _apiRouter_(p) {
       if (!DASHBOARD_OPEN_WRITE && !isAdminUser_(uid)) {
         return _apiJson_({ok:false, error:"unauthorized — admin only"});
       }
-      // [#orderlog] บันทึก audit trail ต่อออเดอร์ (ใครสั่งทำอะไรเมื่อไหร่)
+      // บันทึก audit trail ต่อออเดอร์ (ใครสั่งทำอะไรเมื่อไหร่)
       //   log "เจตนา" ก่อน handler รัน — actions เกือบทั้งหมดสำเร็จ
       if (p.orderId) { try { logAudit_(String(p.orderId), action, "liff:"+uid); } catch(_) {} }
     }
@@ -8797,7 +8785,7 @@ function _apiRouter_(p) {
       case "additem":    return _apiAddItem_(p);
       case "removeitem": return _apiRemoveItem_(p);
       case "parsesave":  return _apiParseSave_(p);
-      // [v3.6.2] new endpoints
+      // new endpoints
       case "search":     return _apiSearch_(p);
       case "customer":   return _apiCustomer_(p);
       case "menus":      return _apiMenus_(p);
@@ -8805,7 +8793,7 @@ function _apiRouter_(p) {
       case "audit":      return _apiAudit_(p);
       case "orderlog":   return _apiOrderLog_(p);
       case "announce":   return _apiAnnounce_(p);
-      // [#team] gamified team board
+      // gamified team board
       case "team":          return _apiTeam_(p);
       case "teamheartbeat": return _apiTeamHeartbeat_(p);
       case "teamprofile":   return _apiTeamProfile_(p);
@@ -8847,7 +8835,7 @@ function _apiToggleUrgent_(p) {
 function _apiMarkPaid_(p) {
   var oid = String(p.orderId||"").trim();
   if (!oid) return _apiJson_({ok:false, error:"missing orderId"});
-  // [v3.7] on=0 → ยกเลิกสถานะชำระ (กดผิด) / on=1 หรือไม่ส่ง → mark ชำระแล้ว
+  // on=0 → ยกเลิกสถานะชำระ (กดผิด) / on=1 หรือไม่ส่ง → mark ชำระแล้ว
   var on = String(p.on === undefined ? "1" : p.on) !== "0";
   if (!on) {
     var okUn = unmarkOrderPaid_(oid);
@@ -8859,7 +8847,7 @@ function _apiMarkPaid_(p) {
   var alreadyPaid = rowsBefore.length && String(rowsBefore[0].paymentStatus||"").trim().toLowerCase() === "paid";
   var ok = markOrderPaidWithSlip_(oid, slip, getTodayTH(),
     Utilities.formatDate(new Date(), TIMEZONE, "HH:mm"));
-  // [#team] +1 แต้ม mark ชำระภายใน 1 ชม. หลัง order สร้าง (ครั้งแรกเท่านั้น)
+  // +1 แต้ม mark ชำระภายใน 1 ชม. หลัง order สร้าง (ครั้งแรกเท่านั้น)
   try {
     if (ok && p.uid && !alreadyPaid) {
       var rows = findOrderRowsById_(oid);
@@ -8891,7 +8879,7 @@ function _apiStatus_(p) {
   var rowsBeforeStatus = findOrderRowsById_(oid);
   var alreadyDelivered = rowsBeforeStatus.length && /^(completed|ส่งแล้ว|delivered)$/i.test(String(rowsBeforeStatus[0].status||"").trim());
   var res = updateOrderStatus_(oid, st, "liff:"+String(p.uid||"").substring(0,8));
-  // [#team] +1 เมื่อ mark "ส่งแล้ว" (+2 ถ้า urgent ทันเวลา) — ครั้งแรกเท่านั้น
+  // +1 เมื่อ mark "ส่งแล้ว" (+2 ถ้า urgent ทันเวลา) — ครั้งแรกเท่านั้น
   try {
     if (res && res.ok !== false && p.uid && !alreadyDelivered && /^(completed|ส่งแล้ว|delivered)$/i.test(st)) {
       var rows = findOrderRowsById_(oid);
@@ -8968,7 +8956,7 @@ function _apiParseSave_(p) {
     if (errors.length > 0)
       return _apiJson_({ok:false, error:"ขาดข้อมูล: "+errors.join(", "), parsed:orderData});
 
-    // [v3.6.2/B3] duplicate guard ฝั่งเว็บ (LINE path มีอยู่แล้ว) — ส่ง force=1 เพื่อบันทึกซ้ำ
+    // duplicate guard ฝั่งเว็บ (LINE path มีอยู่แล้ว) — ส่ง force=1 เพื่อบันทึกซ้ำ
     if (!p.force) {
       var dupOid = isDuplicateOrder_(normalized);
       if (dupOid) {
@@ -8983,7 +8971,7 @@ function _apiParseSave_(p) {
     }
 
     var oid = saveOrderToSheet_(orderData, normalized, "liff:"+String(p.uid||"").substring(0,8));
-    // [#team] +1 เมื่อสร้างออเดอร์ใหม่
+    // +1 เมื่อสร้างออเดอร์ใหม่
     try { if (p.uid) _appendPointsRow_(p.uid, oid, "created", 1); } catch(_) {}
     return _apiJson_({ok:true, orderId:oid, customer:orderData.customerName,
       total:toNumber(orderData.grandTotal), items:(orderData.items||[]).length});
@@ -8993,7 +8981,7 @@ function _apiParseSave_(p) {
 }
 
 // ============================================================
-// [v3.6.2] NEW DASHBOARD ENDPOINTS
+// NEW DASHBOARD ENDPOINTS
 // ============================================================
 
 // /?api=search&q=keyword[&limit=20]
@@ -9229,7 +9217,7 @@ function _apiAudit_(p) {
   return _apiJson_({ok:true, count:entries.length, entries:entries.slice(0, limit)});
 }
 
-// [#orderlog] change-log ราย order — append ทุก write action ลงชีต "AuditLog"
+// change-log ราย order — append ทุก write action ลงชีต "AuditLog"
 //   คอลัมน์: timestampTH | orderId | action | by
 var AUDIT_LOG_SHEET_ = "AuditLog";
 function _getAuditLogSheet_() {
@@ -9277,7 +9265,7 @@ function _apiOrderLog_(p) {
   return _apiJson_({ok:true, count:entries.length, orderId:oid, entries:entries});
 }
 
-// [v3.7] ประกาศเข้ากลุ่ม LINE — จากปุ่มในเว็บ
+// ประกาศเข้ากลุ่ม LINE — จากปุ่มในเว็บ
 //   /?api=announce&uid=U...&orderId=ORD-...   → ประกาศ 1 ออเดอร์
 //   /?api=announce&uid=U...&scope=today       → ประกาศรายการส่งวันนี้ทั้งหมด
 //   ส่งเข้ากลุ่มที่ register ไว้ (pushFlexToGroups_) เท่านั้น
@@ -9341,7 +9329,7 @@ function _apiAnnounce_(p) {
 function _apiVerify_(p) {
   var uid = String(p.uid||"").trim();
   if (!uid) return _apiJson_({ok:false, error:"missing uid"});
-  // [v3.5.6] OPEN_ACCESS=true → ใครก็เข้าได้ (return isAdmin:true)
+  // OPEN_ACCESS=true → ใครก็เข้าได้ (return isAdmin:true)
   //   write API ยังเช็ค isAdminUser_ ตามเดิม
   var canView = canViewDashboard_(uid);
   return _apiJson_({ok:true, isAdmin:canView, uid:uid.substring(0,8)+"..."});
@@ -9350,7 +9338,7 @@ function _apiVerify_(p) {
 // /?api=orders&date=YYYY-MM-DD   → ออเดอร์ของวันนั้น
 // /?api=orders&from=YYYY-MM-DD&to=YYYY-MM-DD  → ช่วงวัน
 // option: &status=preparing|ready|delivered  → filter
-// [v3.6.1] API response cache — 60s TTL ที่ระดับ endpoint
+// API response cache — 60s TTL ที่ระดับ endpoint
 //   เร็วกว่า getSheetDataCached ตรงๆ เพราะ skip transform + filter ด้วย
 function _apiCacheGet_(key) {
   try {
@@ -9370,14 +9358,14 @@ function _apiOrders_(p) {
   var toParam   = String(p.to||"").trim();
   var statusF   = String(p.status||"").trim().toLowerCase();
 
-  // [v3.6.1] cache key รวม version (เพื่อ bust หลัง save)
+  // cache key รวม version (เพื่อ bust หลัง save)
   var cacheKey = "api_orders_v"+getCacheVersion_()+"_"+(dateParam||fromParam+"_"+toParam)+"_"+statusF;
   var cached = _apiCacheGet_(cacheKey);
   if (cached) {
     return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // [#prebuilt-index] ลองอ่านจาก month index ก่อน (เร็ว ~20ms vs Sheet ~500ms)
+  // ลองอ่านจาก month index ก่อน (เร็ว ~20ms vs Sheet ~500ms)
   var orders = null;
   if (fromParam && toParam && !statusF) {
     var fromMonth = fromParam.substring(0,7);
@@ -9470,7 +9458,7 @@ function _apiOrders_(p) {
 
   var result = {ok:true, count:orders.length, orders:orders};
   var jsonStr = JSON.stringify(result);
-  // [v3.6.1] cache 60s — save → bumpCacheVersion จะ invalidate cache key
+  // cache 60s — save → bumpCacheVersion จะ invalidate cache key
   _apiCachePut_(cacheKey, jsonStr, 60);
   return ContentService.createTextOutput(jsonStr).setMimeType(ContentService.MimeType.JSON);
 }
@@ -9615,7 +9603,7 @@ function _renderMessageLogText_(n) {
 }
 
 // ============================================================
-// [#team] GAMIFIED TEAM BOARD
+// GAMIFIED TEAM BOARD
 //   2 Sheet: Team (รายชื่อ) + TeamPoints (ลอง append-only)
 //   Heartbeat เก็บใน Script Properties (5 นาทีถือว่า online)
 //   รัน setupTeamSheets() ครั้งเดียวเพื่อสร้าง Sheet + header
@@ -9789,7 +9777,7 @@ function _hasPointsRowFor_(uid, orderId, action) {
 }
 
 // ──────────────────────────────────────────────────────────
-// [#team-medals] Medal + EOD + Morning Leaderboard Block
+// Medal + EOD + Morning Leaderboard Block
 // ──────────────────────────────────────────────────────────
 
 // คำนวณเหรียญจากแต้มสะสมของเดือน
@@ -9934,7 +9922,7 @@ function runTeamLeaderboardBlockNow() {
 }
 
 // ──────────────────────────────────────────────────────────
-// [#prebuilt-index] Month Index ใน PropertiesService
+// Month Index ใน PropertiesService
 //   อ่านจาก index ก่อน (เร็ว ~20ms) → ถ้าไม่มีค่อย fall back อ่าน Sheet
 //   rebuild ทุกครั้งที่ write (save/update/cancel/status/paid)
 // ──────────────────────────────────────────────────────────
