@@ -1,6 +1,9 @@
 // ============================================================
-// 🐔 SUNRISE ORDER BOT — v3.7
+// 🐔 SUNRISE ORDER BOT — v3.8
 // ============================================================
+// เช็คว่าโค้ดที่ deploy อยู่เป็นเวอร์ชันไหน: พิมพ์ "version" ในแชท
+var BOT_VERSION      = "v3.8";
+var BOT_VERSION_NOTE = "แก้ปัญหาวันที่ — เดือนสะกดผิด / วันหลุดไปช่องเวลา-ชื่อ / เตือนเมื่ออ่านวันไม่ออก";
 
 // ============================================================
 // CONFIG
@@ -5418,6 +5421,16 @@ function handleAdminCommand(text, replyToken, userId, source) {
   }
 
   if (lower==="help") { replyFlexWithQuickReply(replyToken, buildHelpFlex(), QR_HELP); return true; }
+
+  // "version" — ยืนยันว่าโค้ดที่ deploy อยู่เป็นเวอร์ชันไหน
+  //   แก้ปัญหาที่เจอบ่อย: แก้โค้ดแล้วไม่แน่ใจว่า Apps Script อัปเดตหรือยัง
+  //   ถามบอทได้เลย ไม่ต้องเดาจากพฤติกรรม
+  if (lower==="version"||lower==="เวอร์ชัน"||lower==="เวอร์ชั่น") {
+    replyLineWithQuickReply(replyToken,
+      "🐔 Sunrise Order Bot\nเวอร์ชัน: "+BOT_VERSION+"\n\n"+BOT_VERSION_NOTE,
+      ["help","plan 7","summary"]);
+    return true;
+  }
   // เลิกทำ action ล่าสุด
   if (lower==="เลิกทำ"||lower==="undo"||lower==="↩️ เลิกทำ"||lower==="ย้อนกลับ"||lower==="ยกเลิกล่าสุดที่ทำ") {
     return handleUndo_(replyToken, userId);
